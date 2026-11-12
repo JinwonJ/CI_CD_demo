@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CI/CD 운영 대시보드</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:#15283b;font:15px/1.55 system-ui,sans-serif}
+  main{max-width:1250px;margin:auto;padding:28px}h1{margin:5px 0;font-size:clamp(27px,5vw,43px)}h2{margin:0 0 12px}
+  header,section{background:white;border:1px solid #d7e1e8;border-radius:15px;padding:22px;margin-bottom:17px}
+  header{background:#142c43;color:#fff}header p{margin:8px 0;color:#d8e7f1}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0}.flow a,.flow span{display:block}
+  .flow a{background:#e3f1fb;color:#133955;border-radius:8px;padding:7px 12px;text-decoration:none}
+  .tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}button,select{font:inherit;padding:6px 12px;border:1px solid #9cafbd;border-radius:7px;background:#fff;color:#173149}
+  button{cursor:pointer}button:disabled{cursor:wait}.grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}.grid section{min-width:0}
+  .scroll{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:8px;border-bottom:1px solid #dfe8ef;vertical-align:top}th{white-space:nowrap;color:#41596d}
+  td{overflow-wrap:anywhere}a{color:#125a87}p.note{color:#5b4150}.engine{margin-top:22px}.badge{padding:3px 8px;border-radius:20px;background:#e8f1f7;white-space:nowrap}
+  @media(max-width:850px){.grid{grid-template-columns:1fr;gap:0}main{padding:12px}header,section{padding:14px}}
+  :root{color-scheme:dark;--panel:#142235;--line:#293b52;--muted:#a5b7ca;--accent:#69dfd0}
+  body{background:#0c1523;color:#edf4fc}
+  .rail{position:fixed;inset:0 auto 0 0;width:184px;padding:23px 14px;background:#101c2d;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .brand{display:flex;align-items:center;gap:9px;margin:0 0 24px;font-weight:800}
+  .brand span{display:grid;place-items:center;width:32px;height:32px;background:var(--accent);color:#102735;border-radius:8px;font-size:11px}
+  .rail a{color:var(--muted);text-decoration:none;padding:9px 10px;border-radius:7px}
+  .rail a:hover,.rail a[aria-current="location"]{color:var(--accent);background:#1b3044}
+  main{max-width:1660px;margin:0 0 0 184px;padding:26px}
+  header,section{background:var(--panel);border-color:var(--line);border-radius:10px}
+  header{background:linear-gradient(110deg,#15263b,#123039);padding:20px 22px}
+  header h1{font-size:clamp(23px,3vw,36px)}header p,p.note{color:var(--muted)}
+  #mode-label{color:var(--accent);font-weight:750;letter-spacing:.08em}
+  .flow a{background:#20384d;color:#e2f4f8}.flow small{color:var(--accent)}
+  button,select{background:#172940;color:#edf4fc;border-color:#415771}button:hover{border-color:var(--accent)}
+  a{color:#81dcf4}th,td{border-color:var(--line)}th{color:#b8ccdf;background:#182a40}
+  section{scroll-margin-top:14px}section:target{border-color:var(--accent)}
+  .overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 15px;min-width:0}
+  .metric strong{display:block;font-size:clamp(18px,2.4vw,29px);margin:4px 0;color:var(--accent);overflow-wrap:anywhere}
+  .metric strong[data-tone="bad"]{color:#ff9caa}.metric strong[data-tone="wait"]{color:#ffd185}
+  .metric small,.metric span{color:var(--muted)}.monitor{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .monitor h2{font-size:17px}.monitor p{color:var(--muted);margin:0 0 10px}
+  .cpu-row{display:grid;grid-template-columns:minmax(95px,1fr) minmax(70px,1fr) 65px;align-items:center;gap:9px;margin:8px 0;font-size:13px}
+  .cpu-row span:first-child{overflow-wrap:anywhere}progress{width:100%;height:9px;accent-color:var(--accent)}
+  .event{display:flex;gap:10px;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0}
+  .event b{color:var(--accent)}.event b[data-tone="bad"]{color:#ff9caa}.event b[data-tone="wait"]{color:#ffd185}
+  @media(max-width:1100px){.grid{grid-template-columns:1fr}}
+  @media(max-width:740px){.rail{position:static;width:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px}.brand{margin:0 5px 0 0}.rail a{padding:6px}.rail .brand span{display:none}main{margin:0;padding:12px}.overview,.monitor{grid-template-columns:1fr 1fr}}
+  @media(max-width:480px){.monitor{grid-template-columns:1fr}.metric{padding:9px}}
+  .api-stack{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:10px}
+  .api-stack summary{cursor:pointer;font-weight:700;color:var(--accent)}
+  .api-stack label{display:block;margin:10px 0}
+  .api-scope{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0}
+  .api-scope fieldset{min-width:0;border:1px solid var(--line);border-radius:8px}
+  .api-scope legend{font-weight:700}
+  .api-options{max-height:160px;overflow:auto;margin-top:8px}
+  .api-options label{display:flex;gap:8px;align-items:baseline;padding:4px 0;overflow-wrap:anywhere}
+  .api-brush-enabled{touch-action:none;user-select:none;cursor:crosshair}
+  .api-brush{fill:#65b4ff22;stroke:#65b4ff;stroke-width:1;pointer-events:none}
+  #api-list{max-height:min(42vh,360px);overflow:auto;overscroll-behavior:contain;overflow-anchor:none}
+  #api-list .scroll{overflow:visible}
+  #api-list th{position:sticky;top:0;z-index:1}
+  #api-detail{width:min(620px,calc(100% - 32px));max-height:80vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--panel);color:inherit}
+  #api-detail::backdrop{background:#050b14bb}
+  .api-detail-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .api-detail-heading h3{margin:0}
+  #api-log{white-space:pre-wrap;overflow-wrap:anywhere}
+  #api-arrivals{display:inline-block;color:var(--accent);font-weight:750}
+  .api-new{animation:api-enter .7s ease-out both}
+  .api-new-error{--api-highlight:#74374a}
+  @keyframes api-enter{from{opacity:.25;transform:translateY(-6px);background:var(--api-highlight,#245949)}to{opacity:1;transform:none;background:transparent}}
+  @media(prefers-reduced-motion:reduce){.api-new{animation:none}}
+  .chart{display:block;width:100%;height:auto;min-height:80px}
+  .chart text{fill:var(--muted);font:12px system-ui}
+  .chart-grid{stroke:var(--line);stroke-width:1}
+  .chart-limit{stroke:#f5ba69;stroke-width:1;stroke-dasharray:4 4}
+  .cpu-plot{min-height:32px;height:38px}.cpu-alert{color:#ffadba;font-weight:750}
+  .cpu-warn{color:#ffd185;font-weight:750}
+  .cpu-row{grid-template-columns:minmax(85px,1fr) minmax(72px,1fr) minmax(78px,auto)}
+  .chart-key{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:13px}
+  .chart-key b{color:var(--key);padding-right:4px}
+  .api-dot{cursor:pointer}.api-dot:focus{stroke:white;stroke-width:2px;outline:none}
+  .api-chart-wrap{overflow-x:auto}.api-chart-wrap svg{min-width:520px}
+  .api-flow-packet{animation:api-travel 12s linear both;animation-delay:var(--flow-delay)}
+  .api-flow-result{animation:api-verdict 12s steps(1,end) both;animation-delay:var(--flow-delay)}
+  .api-flow-paused :is(.api-flow-packet,.api-flow-result){animation-play-state:paused}
+  @keyframes api-verdict{0%{color:#a5b7ca}50%,100%{color:var(--result-color)}}
+  @keyframes api-travel{
+    0%{transform:translateX(0);opacity:.5}
+    8%{opacity:1}
+    92%{opacity:1}
+    100%{transform:translateX(590px);opacity:0}
+  }
+  @media(prefers-reduced-motion:reduce){.api-flow-packet,.api-flow-result{animation:none}}
+  .issue-dot{display:inline-block;width:9px;height:9px;margin-left:6px;border-radius:50%;background:#ff6178}
+  .issue-dot[hidden],#issue-demo[hidden]{display:none}
+  #issue-stack{display:grid;gap:8px;max-height:440px;overflow:auto}
+  .issue-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .issue-card summary{cursor:pointer}
+  .issue-card small{color:var(--muted)}
+  .issue-card p{overflow-wrap:anywhere}
+  .issues-page main > :not(#issues){display:none}
+  .usage-page main > :not(#usage){display:none}
+  .metric-visual{height:92px;display:flex;align-items:center;justify-content:center;margin:8px 0}
+  .metric-visual svg{width:88px;height:88px}
+  .metric-visual svg text{font:700 15px system-ui;fill:#edf4fc}
+  .metric-visual .ring-track{fill:none;stroke:var(--line);stroke-width:8}
+  .metric-visual .ring-value{fill:none;stroke-width:8;stroke-linecap:round;transform:rotate(-90deg);transform-origin:44px 44px;transition:stroke-dasharray .5s ease}
+  .metric .metric-visual+strong{font-size:18px;margin-top:0}
+  .container-tiles{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-height:88px;overflow:auto}
+  .container-tile{width:23px;height:23px;border-radius:5px;border:2px solid #65b4ff;background:#22476a}
+  .container-tile.stopped{border-style:dashed;border-color:#a5b7ca;background:#273747}
+  .call-bars{height:70px;display:flex;align-items:flex-end;gap:4px;width:150px}
+  .call-bars span{flex:1;min-height:2px;background:#65b4ff;border-radius:3px 3px 0 0;transition:height .5s ease}
+  .docker-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px}
+  .docker-card{padding:15px;border:1px solid var(--line);border-radius:10px;background:#102033;min-width:0}
+  .docker-card h4{margin:0 0 10px;overflow-wrap:anywhere}
+  .docker-state{display:flex;align-items:center;gap:8px;font-size:13px}
+  .state-symbol{display:grid;place-items:center;width:26px;height:26px;border:2px solid currentColor;border-radius:50%;font-weight:800}
+  .docker-gauge{margin:14px 0 10px}.docker-gauge .tools{justify-content:space-between;font-size:13px}
+  .docker-gauge progress{height:12px;margin-top:6px;accent-color:#65b4ff}
+  .docker-card details{font-size:13px}.docker-card summary{cursor:pointer;color:var(--accent)}
+  .docker-card dl{display:grid;grid-template-columns:85px minmax(0,1fr);gap:8px}
+  .docker-card dt{color:var(--muted)}.docker-card dd{margin:0;overflow-wrap:anywhere}
+  .storage-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+  .storage-card{padding:14px;border:1px solid var(--line);border-radius:8px}
+  .storage-card h4{margin:0 0 8px}.storage-track{height:13px;border-radius:4px;background:#334b67;overflow:hidden;display:flex;margin:12px 0}
+  .storage-kept{background:#65b4ff}.storage-freeable{background:#70dfd1}
+</style>
+<nav class="rail" aria-label="운영 화면">
+  <div class="brand"><span>OP</span> Ops Monitor</div>
+  <a href="#overview" aria-current="location">운영 개요</a>
+  <a href="#github">GitHub 빌드</a>
+  <a href="#jenkins">Jenkins 배포</a>
+  <a href="#docker">Docker 리소스</a>
+  <a href="#requests">실시간 API</a>
+  <a id="issue-nav" href="/issues">보안 이슈<span id="issue-dot" class="issue-dot" hidden aria-hidden="true"></span></a>
+  <a id="usage-nav" href="/usage">비용·무료 한도</a>
+</nav>
+<main>
+  <header id="overview">
+    <small id="mode-label">LOCAL · READ ONLY</small>
+    <h1>CI/CD 운영 대시보드</h1>
+    <p id="mode-description">릴리스 빌드부터 배포 기록, 실행 중인 컨테이너까지 확인합니다.</p>
+    <nav class="flow" aria-label="파이프라인 흐름">
+      <a href="#github">1. GitHub 빌드·보안 검사 <small id="flow-ci"></small></a><span aria-hidden="true">→</span>
+      <a href="#jenkins">2. Jenkins 검증·승인·배포 <small id="flow-cd"></small></a><span aria-hidden="true">→</span>
+      <a href="#docker">3. Docker 상태·사용량 <small id="flow-docker"></small></a>
+    </nav>
+    <div class="tools"><label>환경 <select id="environment"><option value="">전체 환경</option><option value="staging">개발·검증 · staging</option><option value="production">운영 · production</option></select></label><label>프로젝트 <select id="project"><option value="">전체</option></select></label><button id="refresh" type="button">새로고침</button><span id="updated" role="status">연결 중</span></div>
+    <p id="environment-note">전체 환경과 공통 인프라를 표시합니다.</p>
+  </header>
+  <section id="infrastructure-health"><h2>인프라 장애 감시·복구</h2><p id="infrastructure-status" role="status">상태 확인 중</p><div id="infrastructure-events"></div></section>
+  <div class="overview" aria-label="핵심 운영 지표">
+    <div class="metric"><small>최근 GitHub 빌드</small><div class="metric-visual" id="visual-ci"></div><strong id="metric-ci">—</strong><span id="metric-ci-info">릴리스 워크플로</span></div>
+    <div class="metric"><small>최근 Jenkins 배포</small><div class="metric-visual" id="visual-cd"></div><strong id="metric-cd">—</strong><span id="metric-cd-info">배포 작업</span></div>
+    <div class="metric"><small>실행 중인 컨테이너</small><div class="metric-visual" id="visual-docker"></div><strong id="metric-docker">—</strong><span id="metric-docker-info">선택한 프로젝트 기준</span></div>
+    <div class="metric"><small>최근 실패 비중</small><div class="metric-visual" id="visual-fail"></div><strong id="metric-fail">—</strong><span>표시된 GitHub·Jenkins 기록 기준</span></div>
+  </div>
+  <div class="monitor">
+    <section><h2>최근 파이프라인 활동</h2><p>최근 조회한 실행 결과</p><div id="activity"></div></section>
+    <section><h2>컨테이너 CPU 추세</h2><p>상위 5개 · Docker 기준 80% 주의 / 95% 위험 · 100% ≈ CPU 1코어</p><div id="cpu-warning" role="status"></div><div id="cpu-panel"></div></section>
+  </div>
+  <div class="grid">
+    <section id="github"><h2>GitHub · 릴리스 빌드</h2><p>Gitleaks → 이미지 빌드 → 스모크 테스트 → Trivy</p><div id="ci-content"></div><div id="github-detail" aria-live="polite"></div></section>
+    <section id="jenkins"><h2>Jenkins · 배포 이력</h2><p>Run ID 검증 → 승인 → 컨테이너 교체 → 스테이징 ZAP</p><div id="cd-content"></div><div id="jenkins-detail" aria-live="polite"></div></section>
+  </div>
+  <section id="docker">
+    <div class="tools"><h2>Docker · 서비스 및 사용량</h2><label>컨테이너 <select id="filter"><option value="all">전체</option><option value="running">실행 중</option><option value="stopped">실행 중 아님</option></select></label></div>
+    <p>컨테이너별 리소스와 엔진별 저장 공간을 표시합니다. 상세 정보는 카드에서 펼쳐 볼 수 있습니다.</p>
+    <div id="docker-content"></div>
+  </section>
+  <section id="requests">
+    <div class="tools"><h2>실시간 API 호출</h2><button id="api-pause" type="button" aria-pressed="false">일시 정지</button><span id="api-connection"></span></div>
+    <p>최근 60초 · 최대 100건 · 완료된 요청 기준 <span id="api-arrivals"></span></p>
+    <details class="api-stack">
+      <summary>표시 대상 선택 <span id="api-scope-summary"></span></summary>
+      <p>선택한 컨테이너와 API 종류만 집계와 로그에 표시합니다.</p>
+      <div class="api-scope">
+        <fieldset><legend>컨테이너 로그</legend>
+          <button type="button" id="api-containers-all">전체 선택</button>
+          <button type="button" id="api-containers-none">선택 해제</button>
+          <div class="api-options" id="api-containers-options">호출 대기 중</div>
+        </fieldset>
+        <fieldset><legend>API 통신 · 메서드와 경로</legend>
+          <button type="button" id="api-routes-all">전체 선택</button>
+          <button type="button" id="api-routes-none">선택 해제</button>
+          <div class="api-options" id="api-routes-options">호출 대기 중</div>
+        </fieldset>
+      </div>
+    </details>
+    <div class="overview">
+      <div class="metric"><small>수집된 호출 · 5초 구간별</small><div class="metric-visual" id="visual-api-volume"></div><strong id="api-count">—</strong></div>
+      <div class="metric"><small>성공 · HTTP 2xx</small><div class="metric-visual" id="visual-api-success"></div><strong id="api-success">—</strong></div>
+      <div class="metric"><small>실패 · HTTP 2xx 외 또는 연결 종료</small><div class="metric-visual" id="visual-api-error"></div><strong id="api-errors">—</strong></div>
+      <div class="metric"><small>p95 응답 시간 · 기준 300ms</small><div class="metric-visual" id="visual-api-latency"></div><strong id="api-p95">—</strong></div>
+    </div>
+    <h3>실시간 API 흐름</h3>
+    <p>가로 방향은 호출의 흐름이고, 높이는 요청 처리 시간입니다. 완료된 호출을 재생하며, 가운데 판정선을 지나면 결과 색이 표시됩니다.</p>
+    <div class="chart-key">
+      <span><b style="--key:#a5b7ca">●</b>판정선 통과 전</span>
+      <span><b style="--key:#65b4ff">●</b>성공 · HTTP 2xx</span>
+      <span><b style="--key:#ff667d">●</b>그 외 응답 또는 연결 종료</span>
+    </div>
+    <div id="api-chart" class="api-chart-wrap"></div>
+    <div class="tools"><span id="api-selection-status" role="status">일시정지 후 그래프를 드래그해 호출 범위를 선택할 수 있습니다.</span><button id="api-selection-clear" type="button" hidden>범위 선택 해제</button></div>
+    <label>결과 <select id="api-filter"><option value="all">전체</option><option value="success">성공</option><option value="slow">느린 호출</option><option value="error">실패</option></select></label>
+    <details class="api-stack" id="request-stack"><summary>호출 스택 <span id="api-stack-count"></span></summary>
+      <p>목록 안에서 스크롤하세요. 맨 위로 돌아오면 최신 호출이 표시됩니다.</p>
+      <div id="api-list" tabindex="0" role="region" aria-label="최근 API 호출 목록"></div>
+    </details>
+    <dialog id="api-detail" aria-labelledby="api-detail-title">
+      <div class="api-detail-heading"><h3 id="api-detail-title">호출 상세 로그</h3><form method="dialog"><button autofocus>닫기</button></form></div>
+      <pre id="api-log"></pre>
+    </dialog>
+  </section>
+  <section id="issues" hidden>
+    <div class="tools"><h2>보안 이슈</h2><button id="issue-read" type="button">모두 읽음</button><button id="issue-demo" type="button" hidden>예시 이슈 추가</button></div>
+    <p id="issue-status" role="status">조회 중</p>
+    <div id="issue-stack"></div>
+  </section>
+  <section id="usage" hidden>
+    <h2>비용·무료 한도</h2>
+    <p>계정의 공식 청구 화면에서 확인한 값과 Jenkins의 발송 기록을 표시합니다.</p>
+    <div id="usage-content"></div>
+    <h3>무료 범위 확인</h3>
+    <p>Jenkins와 Mailer 자체는 오픈소스로 사용할 수 있습니다. SMTP 발송료는 연결한 메일 서비스 요금제에 따릅니다.</p>
+    <p>개인 Gmail은 하루 500건 초과 발송 또는 한 통의 수신자가 500명을 넘는 경우 발송 제한이 발생할 수 있습니다. 계정의 전체 발송량에 적용됩니다.</p>
+    <p>GitHub 무료 제공량과 초과 차단 설정은 계정 Billing에서 확인하세요. 계산·저장 공간·이미지 보관은 각각 확인해야 합니다.</p>
+    <p><a href="https://github.com/settings/billing" target="_blank" rel="noopener noreferrer">GitHub Billing</a> · <a href="https://docs.github.com/en/billing/reference/product-usage-included" target="_blank" rel="noopener noreferrer">GitHub 공식 무료 제공량</a> · <a href="https://support.google.com/mail/answer/22839?hl=ko" target="_blank" rel="noopener noreferrer">Gmail 공식 발송 제한</a></p>
+    <p>이 화면의 표시는 비용 차단 설정이 아닙니다. 계정의 초과 사용 중지 정책을 별도로 적용해야 합니다.</p>
+  </section>
+</main>
+<script>
+  const fetch = () => Promise.reject(new Error("Live APIs are disabled in the public demo"));
+  const params = new URLSearchParams(location.search);
+  const fileMode = true; // Standalone public demo: query-only navigation
+  const demo = true; // Public exports never connect to live services
+  const issuesPage = location.pathname === '/issues' || (fileMode && params.get('view') === 'issues');
+  const usagePage = location.pathname === '/usage' || (fileMode && params.get('view') === 'usage');
+  const dashboardUrl = fileMode ? location.pathname : demo ? '/?demo=1' : '/';
+  const issuesUrl = fileMode ? '?view=issues' : demo ? '/issues?demo=1' : '/issues';
+  const usageUrl = fileMode ? '?view=usage' : demo ? '/usage?demo=1' : '/usage';
+  const demoDate = '2026-11-05T10:00:00+09:00';
+  const demoData = {
+    time: demoDate, repository: 'example/ci-cd', jenkinsJob: 'https://example.invalid/jenkins/',
+    projects: ['sample-web', 'demo-api'], groups: { 'group:demo-platform': ['sample-web', 'demo-api'] },
+    github: { data: [
+      { id: 1002, state: 'success', sha: 'a1b2c3d4', date: demoDate },
+      { id: 1001, state: 'failure', sha: 'e5f6a7b8', date: '2026-11-05T09:30:00+09:00' }
+    ] },
+    jenkins: { data: { inQueue: false, builds: [
+      { number: 43, state: 'SUCCESS', fields: { SELECTION: 'project:sample-web', TARGET_HOST: 'windows', RELEASE_TIER: 'production', OPERATION: 'deploy', RELEASE_RUN_ID: '1002' }, reports: [] },
+      { number: 42, state: 'SUCCESS', fields: { SELECTION: 'group:demo-platform', TARGET_HOST: 'windows', RELEASE_TIER: 'staging', OPERATION: 'deploy', RELEASE_RUN_ID: '1002' }, reports: ['.work/cd/zap/sample-web.json', '.work/cd/zap/demo-api.json'] },
+      { number: 41, state: 'FAILURE', fields: { SELECTION: 'project:sample-web', TARGET_HOST: 'linux', RELEASE_TIER: 'staging', OPERATION: 'deploy', RELEASE_RUN_ID: '1002' }, reports: ['.work/cd/group-journal.json'] }
+    ] } },
+    docker: { data: [{ name: '예시 Docker 엔진', containers: [
+      { name: 'sample-web-windows', tier: 'production', image: 'sample-web:demo-v1', state: 'running', status: 'Up 2 hours (healthy)', cpu: '2.1%', memory: '160 MiB / 4 GiB', net: '20 MB / 42 MB', block: '8 MB / 2 MB', ports: '192.0.2.10:18082 → 3000' },
+      { name: 'sample-web-windows-staging', tier: 'staging', image: 'sample-web:demo-v2', state: 'running', status: 'Up 5 minutes (healthy)', cpu: '1.24%', memory: '142 MiB / 4 GiB', net: '8 MB / 12 MB', block: '4 MB / 1 MB', ports: '192.0.2.10:18083 → 3000' },
+      { name: 'demo-api-windows-staging', image: 'demo-api:demo-v2', state: 'running', status: 'Up 4 minutes (healthy)', cpu: '0.68%', memory: '91 MiB / 4 GiB', net: '2 MB / 3 MB', block: '2 MB / 512 kB', ports: '192.0.2.10:18084 → 8080' },
+      { name: 'sample-web-windows-staging-previous', image: 'sample-web:demo-v1', state: 'exited', status: 'Exited (0)' }
+    ], disk: [
+      { Type: 'Images', Size: '1.8 GB', TotalCount: 6, Reclaimable: '620 MB' },
+      { Type: 'Local Volumes', Size: '540 MB', TotalCount: 2, Reclaimable: '0 B' }
+    ] }] }
+  };
+  function demoDetails(kind, id) {
+    const ciSteps = id === 1001
+      ? [['앱 소스 체크아웃', 'success'], ['Gitleaks', 'failure'], ['이미지 빌드', 'skipped']]
+      : [['앱 소스 체크아웃', 'success'], ['Gitleaks', 'success'], ['이미지 빌드', 'success'], ['스모크 테스트', 'success'], ['Trivy', 'success']];
+    const cdSteps = [['릴리스 증빙 검증', 'SUCCESS'], ['배포 승인', 'SUCCESS'], ['Docker 교체', 'SUCCESS'],
+      ['헬스 체크', id === 41 ? 'FAILED' : 'SUCCESS'],
+      id === 41 ? ['이전 컨테이너 복구', 'SUCCESS'] : ['ZAP 보고서 보관', 'SUCCESS']];
+    const jobs = kind === 'github' ? (id === 1001 ? ['sample-web'] : demoData.projects) : ['Jenkins Pipeline'];
+    return jobs.map(name => ({ name, steps: (kind === 'github' ? ciSteps : cdSteps).map(([name, state]) => ({ name, state })) }));
+  }
+  const byId = id => document.getElementById(id);
+  async function refreshUsage() {
+    const panel = byId('usage-content');
+    try {
+      let data;
+      if (demo) {
+        data = { checkedAt: new Date().toISOString(), email: { sent: 8 },
+          account: { period: '2026-11', checkedAt: demoDate, items: [
+            { service: '예시 GitHub Actions 계산', unit: 'USD', used: 3, included: 12 },
+            { service: '예시 GitHub Actions 저장 공간', unit: 'MB', used: 180, included: 500 }
+          ] } };
+      } else {
+        const response = await fetch('/api/usage');
+        if (!response.ok) throw new Error();
+        data = await response.json();
+      }
+      panel.replaceChildren();
+      el('p', demo ? '데모 · 아래 수치는 예시 데이터입니다.' : '최근 조회 ' + stamp(data.checkedAt), panel);
+      el('h3', '배포 결과 메일', panel);
+      el('p', data.email ? '최근 24시간 발송 확인 ' + data.email.sent + '건 · 최근 Jenkins 작업 최대 100건에서 집계'
+        : '발송량 확인 필요 · Jenkins 조회 권한을 연결하세요.', panel);
+      el('p', '이 파이프라인의 발송 기록 기준입니다. 계정 전체의 메일 사용량은 메일 서비스에서 확인하세요.', panel);
+      el('h3', '계정 사용량', panel);
+      if (data.account) {
+        el('p', '사용 기간 ' + data.account.period + ' · 원본 확인 시각 ' + stamp(data.account.checkedAt), panel);
+        table(panel, ['서비스', '사용량', '무료 한도', '잔여', '상태'], data.account.items.map(item => [
+          item.service, item.used + ' ' + item.unit, item.included + ' ' + item.unit,
+          Math.max(0, item.included - item.used) + ' ' + item.unit,
+          item.used >= item.included ? '무료 한도 도달 · 확인 필요'
+            : item.used >= item.included * .8 ? '80% 이상 사용 · 주의' : '입력된 한도 이내'
+        ]));
+      } else el('p', data.accountError ? '사용량 파일 형식을 확인하세요.' : '무료 한도와 사용량 확인 필요 · 계정 청구 화면의 값을 연결하세요.', panel);
+    } catch {
+      panel.replaceChildren(el('p', '사용량 조회 실패 · 연결과 설정을 확인하세요.'));
+    }
+  }
+  const issueStorageKey = 'operations-security-issues-' + (demo ? 'demo' : 'live');
+  let issueState = { issues: [], read: [] };
+  let issueLoading = false;
+  let demoIssueSequence = 0;
+  const openIssues = new Set();
+  function loadIssueState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(issueStorageKey));
+      if (Array.isArray(saved?.issues) && Array.isArray(saved?.read)) issueState = saved;
+    } catch { /* Storage can be disabled in the browser. */ }
+  }
+  loadIssueState();
+
+  function renderIssueBadge() {
+    const unread = issueState.issues.filter(issue => !issueState.read.includes(issue.id)).length;
+    byId('issue-dot').hidden = unread === 0;
+    byId('issue-nav').setAttribute('aria-label', unread ? '보안 이슈, 읽지 않은 항목 ' + unread + '건' : '보안 이슈');
+    for (const [id, marker] of issueMarkers) marker.hidden = issueState.read.includes(id);
+  }
+  const issueMarkers = new Map();
+  function saveIssues() {
+    try { localStorage.setItem(issueStorageKey, JSON.stringify(issueState)); }
+    catch { /* Keep the current session usable without storage. */ }
+    renderIssueBadge();
+  }
+  function renderIssues() {
+    const stack = byId('issue-stack');
+    stack.replaceChildren();
+    issueMarkers.clear();
+    for (const issue of issueState.issues) {
+      const card = el('details', null, stack);
+      card.className = 'issue-card';
+      card.open = openIssues.has(issue.id);
+      const title = el('summary', issue.kind + ' · ' + issue.title, card);
+      const marker = el('span', null, title);
+      marker.className = 'issue-dot';
+      marker.setAttribute('aria-label', '새 항목');
+      issueMarkers.set(issue.id, marker);
+      el('small', stamp(issue.time), card);
+      el('p', issue.summary, card);
+      if (typeof issue.url === 'string' && /^https:\/\/(github\.com|nodejs\.org|www\.cisa\.gov)\//.test(issue.url)) {
+        card.append(link(issue.kind === '검사' ? 'GitHub 작업 로그' : '공식 공지 보기', issue.url));
+      }
+      card.addEventListener('toggle', () => {
+        if (card.open) {
+          openIssues.add(issue.id);
+          if (!issueState.read.includes(issue.id)) issueState.read.push(issue.id);
+          saveIssues();
+        } else openIssues.delete(issue.id);
+      });
+    }
+    renderIssueBadge();
+  }
+  function mergeIssues(incoming) {
+    const combined = new Map(issueState.issues.map(issue => [issue.id, issue]));
+    incoming.forEach(issue => combined.set(issue.id, issue));
+    const issues = [...combined.values()].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)).slice(0, 100);
+    const changed = JSON.stringify(issueState.issues) !== JSON.stringify(issues);
+    issueState.issues = issues;
+    issueState.read = issueState.read.filter(id => issues.some(issue => issue.id === id));
+    for (const id of openIssues) if (!issues.some(issue => issue.id === id)) openIssues.delete(id);
+    if (changed || !byId('issue-stack').children.length) renderIssues();
+    saveIssues();
+  }
+  async function refreshIssues() {
+    if (issueLoading) return;
+    issueLoading = true;
+    try {
+      if (demo) {
+        mergeIssues([
+          { id: 'demo-scan', kind: '검사', title: '예시 · 이미지 취약점 검사 기준 초과', time: demoDate, summary: '예시 검사에서 이미지 패키지 취약점이 보고됐습니다.' },
+          { id: 'demo-node', kind: '지원 종료', title: '예시 · Node.js 지원 종료', time: demoDate, summary: '실행 환경에서 확인한 Node.js 버전을 공식 지원 일정과 대조한 예시입니다.' },
+          { id: 'demo-kev', kind: '실제 악용 공지', title: '예시 · 이미지 CVE가 실제 악용 목록에 포함', time: demoDate, summary: 'Trivy 검사 결과와 CISA의 CVE가 일치한 경우입니다.' },
+          { id: 'demo-incident', kind: '사고', title: '예시 · 접근 키 노출 기록', time: '2026-11-04T14:00:00+09:00', summary: '사고 기록이 이슈 스택에 들어오는 예시입니다.' }
+        ]);
+        byId('issue-status').textContent = '데모 · 예시 이슈';
+      } else {
+        const response = await fetch('/api/security-issues');
+        if (!response.ok) throw new Error();
+        const result = await response.json();
+        mergeIssues(result.issues);
+        const notices = [];
+        if (result.ciUnavailable) notices.push('GitHub 검사 결과 일부 조회 불가');
+        if (result.incidentError) notices.push('사고 기록 파일 확인 필요');
+        if (result.advisories?.nodeUnavailable) notices.push('Node.js 공식 데이터 조회 불가');
+        if (result.advisories?.kevUnavailable) notices.push('CISA 공지 조회 불가');
+        if (result.advisories?.reportError) notices.push('Trivy 보고서 경로 또는 형식 확인 필요');
+        if (result.advisories?.reports === 0) notices.push('CISA 대조용 Trivy 보고서 없음');
+        byId('issue-status').textContent = notices.join(' · ') || (issueState.issues.length ? '최근 이슈 · 최대 100건' : '표시할 이슈가 없습니다.');
+      }
+    } catch { byId('issue-status').textContent = '조회 실패 · 이전 목록 표시'; }
+    finally { issueLoading = false; }
+  }
+  const stamp = value => value ? new Date(value).toLocaleString('ko-KR') : '—';
+  function el(tag, value, parent) {
+    const element = document.createElement(tag);
+    if (value != null) element.textContent = value;
+    if (parent) parent.append(element);
+    return element;
+  }
+  function link(text, href) {
+    if (demo) return el('span', text);
+    const anchor = el('a', text);
+    anchor.href = href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    return anchor;
+  }
+  function table(parent, columns, rows, rowClass) {
+    if (!rows.length) { el('p', '표시할 기록이 없습니다.', parent); return; }
+    const wrap = el('div', null, parent);
+    wrap.className = 'scroll';
+    const grid = el('table', null, wrap);
+    const header = el('tr', null, el('thead', null, grid));
+    columns.forEach(column => el('th', column, header).scope = 'col');
+    const body = el('tbody', null, grid);
+    rows.forEach((row, index) => {
+      const tr = el('tr', null, body);
+      if (rowClass) tr.className = rowClass(index);
+      row.forEach(value => {
+        const cell = el('td', null, tr);
+        if (value instanceof Node) cell.append(value);
+        else cell.textContent = value || '—';
+      });
+    });
+  }
+  let current;
+  function environmentMatches(tier) {
+    return !byId('environment').value || byId('environment').value === tier;
+  }
+  function containerEnvironment(row) {
+    if (row.tier) return row.tier;
+    const name = row.name.replace(/-previous$/, '');
+    for (const project of current?.projects || []) {
+      for (const host of ['windows', 'linux']) {
+        if (name === project + '-' + host + '-staging') return 'staging';
+        if (name === project + '-' + host) return 'production';
+      }
+    }
+    return '';
+  }
+  let apiSnapshot;
+  let apiPaused = false;
+  let apiFrozenTime = null;
+  let apiSelection = null;
+  let apiSelectionBounds = null;
+  let apiLoading = false;
+  let demoSequence = 0;
+  let demoCpuSample;
+  const apiSucceeded = event => event.status >= 200 && event.status < 300;
+  const apiFailed = event => !apiSucceeded(event);
+  const apiKey = event => event.id || JSON.stringify(event);
+  const slowMs = 300;
+  const flowMs = 12000;
+  const apiScopes = {
+    containers: {
+      options: new Map(), selected: null,
+      key: event => JSON.stringify([event.engine || '', event.container]),
+      label: event => event.engine ? event.container + ' · ' + event.engine : event.container
+    },
+    routes: {
+      options: new Map(), selected: null,
+      key: event => event.method + ' ' + event.route,
+      label: event => event.method + ' ' + event.route
+    }
+  };
+
+  function applyApiScope() {
+    clearApiSelection();
+    byId('api-list').scrollTop = 0;
+    renderApi();
+  }
+  function clearApiSelection() {
+    apiSelection = null;
+    apiSelectionBounds = null;
+    byId('api-selection-clear').hidden = true;
+    byId('api-selection-status').textContent = apiPaused
+      ? '그래프를 드래그해 호출 범위를 선택하세요.' : '일시정지 후 그래프를 드래그해 호출 범위를 선택할 수 있습니다.';
+  }
+
+  for (const [name, scope] of Object.entries(apiScopes)) {
+    for (const action of ['all', 'none']) {
+      byId('api-' + name + '-' + action).addEventListener('click', () => {
+        scope.selected = action === 'all' ? null : new Set();
+        for (const input of scope.options.values()) input.checked = action === 'all';
+        applyApiScope();
+      });
+    }
+  }
+
+  function updateApiOptions(events) {
+    for (const [name, scope] of Object.entries(apiScopes)) {
+      const list = byId('api-' + name + '-options');
+      for (const event of events) {
+        const key = scope.key(event);
+        if (scope.options.has(key)) continue;
+        if (scope.options.size === 0) list.replaceChildren();
+        const label = el('label', null, list);
+        const input = el('input', null, label);
+        input.type = 'checkbox';
+        input.checked = scope.selected === null || scope.selected.has(key);
+        el('span', scope.label(event), label);
+        scope.options.set(key, input);
+        input.addEventListener('change', () => {
+          scope.selected = new Set([...scope.options].filter(([, box]) => box.checked).map(([id]) => id));
+          applyApiScope();
+        });
+      }
+    }
+    const count = scope => scope.selected === null ? '전체' : scope.selected.size + '개';
+    byId('api-scope-summary').textContent = '· 컨테이너 ' + count(apiScopes.containers) + ' / API ' + count(apiScopes.routes);
+  }
+
+  function svgNode(tag, attrs, parent, value) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attrs).forEach(([key, attr]) => node.setAttribute(key, attr));
+    if (value != null) node.textContent = value;
+    parent.append(node);
+    return node;
+  }
+  function metricSvg(id, label) {
+    const panel = byId(id);
+    panel.replaceChildren();
+    return svgNode('svg', { viewBox: '0 0 88 88', role: 'img', 'aria-label': label }, panel);
+  }
+  function metricRing(id, value, total, color, label, center) {
+    const svg = metricSvg(id, label);
+    const length = 2 * Math.PI * 32;
+    const fraction = total > 0 ? Math.min(1, Math.max(0, value / total)) : 0;
+    svgNode('circle', { cx: 44, cy: 44, r: 32, class: 'ring-track' }, svg);
+    svgNode('circle', { cx: 44, cy: 44, r: 32, class: 'ring-value', stroke: color,
+      'stroke-dasharray': fraction * length + ' ' + length }, svg);
+    svgNode('text', { x: 44, y: 49, 'text-anchor': 'middle' }, svg, total > 0 ? center || Math.round(fraction * 100) + '%' : '—');
+  }
+  function statusIcon(id, state) {
+    const status = tone(state);
+    const color = status === 'ok' ? '#70dfd1' : status === 'bad' ? '#ff667d' : '#ffd185';
+    const svg = metricSvg(id, statusLabel(state) || '미확인');
+    svgNode('circle', { cx: 44, cy: 44, r: 31, fill: 'none', stroke: color, 'stroke-width': 3 }, svg);
+    const shape = status === 'ok' ? 'M29 44 L40 55 L59 33'
+      : status === 'bad' ? 'M33 33 L55 55 M55 33 L33 55' : 'M44 27 L44 45 L55 51';
+    svgNode('path', { d: shape, fill: 'none', stroke: color, 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+  }
+  function requestVisuals(rows, p95) {
+    const success = rows.filter(apiSucceeded).length;
+    metricRing('visual-api-success', success, rows.length, '#65b4ff', '선택된 호출의 성공 비율');
+    metricRing('visual-api-error', rows.length - success, rows.length, '#ff667d', '선택된 호출의 실패 비율');
+    metricRing('visual-api-latency', p95 || 0, p95 == null ? 0 : slowMs,
+      p95 >= slowMs ? '#ffd185' : '#70dfd1', 'p95 응답 시간과 300ms 기준 비교', p95 + 'ms');
+    const bins = Array(12).fill(0);
+    for (const row of rows) {
+      const age = apiSnapshot.time - row.time;
+      if (age >= 0 && age < 60000) bins[11 - Math.floor(age / 5000)]++;
+    }
+    const panel = byId('visual-api-volume');
+    panel.replaceChildren();
+    const chart = el('div', null, panel);
+    chart.className = 'call-bars';
+    chart.setAttribute('role', 'img');
+    chart.setAttribute('aria-label', '최근 60초 호출량, 5초 구간별 ' + bins.join(', ') + '건');
+    const max = Math.max(1, ...bins);
+    bins.forEach((count, index) => {
+      const bar = el('span', null, chart);
+      bar.style.height = Math.max(2, count / max * 70) + 'px';
+      bar.title = (60 - index * 5) + '초 전 구간 · ' + count + '건';
+    });
+  }
+
+  function selectApi(event) {
+    const detail = byId('api-detail');
+    byId('api-log').textContent = JSON.stringify({ ...event, time: new Date(event.time).toISOString() }, null, 2);
+    if (!detail.open) detail.showModal();
+  }
+
+  function drawApiChart(rows, incoming) {
+    const panel = byId('api-chart');
+    panel.replaceChildren();
+    const svg = svgNode('svg', { class: 'chart' + (apiPaused ? ' api-brush-enabled' : ''), viewBox: '0 0 700 185', 'aria-label': '왼쪽에서 오른쪽으로 이동하는 최근 API 호출' }, panel);
+    const now = apiPaused ? apiFrozenTime : Date.now();
+    const moving = rows.filter(row => now - row.time < flowMs);
+    const limit = Math.max(600, Math.ceil(Math.max(0, ...moving.map(row => row.durationMs)) / 300) * 300);
+    const y = duration => 144 - duration / limit * 120;
+    for (const value of new Set([0, slowMs, limit])) {
+      svgNode('line', { x1: 68, x2: 682, y1: y(value), y2: y(value), class: value === slowMs ? 'chart-limit' : 'chart-grid' }, svg);
+      svgNode('text', { x: 62, y: y(value) + 4, 'text-anchor': 'end' }, svg, value + ' ms');
+    }
+    svgNode('line', { x1: 381, x2: 381, y1: 15, y2: 147, class: 'chart-limit' }, svg);
+    for (const [x, label] of [[86, '호출 유입'], [381, '결과 판정'], [676, '결과 출력']]) {
+      svgNode('text', { x, y: 167, 'text-anchor': 'middle' }, svg, label);
+    }
+    for (const event of [...moving].reverse()) {
+      const color = apiSucceeded(event) ? '#65b4ff' : '#ff667d';
+      const age = Math.max(0, now - event.time);
+      const height = y(event.durationMs);
+      const label = event.method + ' ' + event.route + ' · ' + (event.status || '연결 종료') + ' · ' + event.durationMs + ' ms';
+      const packet = svgNode('g', { class: apiPaused ? '' : 'api-flow-packet', style: '--flow-delay:-' + age + 'ms;--result-color:' + color,
+        transform: 'translate(' + age / flowMs * 590 + ' 0)' }, svg);
+      const result = svgNode('g', { class: apiPaused ? '' : 'api-flow-result', color: age >= flowMs / 2 ? color : '#a5b7ca' }, packet);
+      svgNode('line', { x1: 70, x2: 86, y1: height, y2: height, stroke: 'currentColor', 'stroke-opacity': .38, 'stroke-width': 3 }, result);
+      const dot = svgNode('circle', { cx: 86, cy: height, r: incoming.has(apiKey(event)) ? 6 : 5, fill: 'currentColor', tabindex: 0, role: 'button',
+        class: 'api-dot', 'aria-label': label, stroke: apiSelection?.has(apiKey(event)) ? '#fff' : 'none', 'stroke-width': 2 }, result);
+      svgNode('title', {}, dot, label);
+      dot.addEventListener('click', () => selectApi(event));
+      dot.addEventListener('keydown', key => {
+        if (key.key === 'Enter' || key.key === ' ') {
+          key.preventDefault();
+          selectApi(event);
+        }
+      });
+    }
+    if (!moving.length) svgNode('text', { x: 375, y: 91, 'text-anchor': 'middle' }, svg, '새 호출 대기 중');
+    if (apiPaused) enableApiBrush(svg, moving, y, now);
+  }
+
+  function enableApiBrush(svg, events, y, now) {
+    const rect = svgNode('rect', { class: 'api-brush', x: 0, y: 0, width: 0, height: 0 }, svg);
+    let start;
+    let end;
+    function point(event) {
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return null;
+      const position = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+      return { x: Math.max(68, Math.min(682, position.x)), y: Math.max(15, Math.min(147, position.y)) };
+    }
+    function bounds(a, b) {
+      return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) };
+    }
+    function paint(area) {
+      for (const [key, value] of Object.entries(area)) rect.setAttribute(key, value);
+    }
+    if (apiSelectionBounds) paint(apiSelectionBounds);
+    svg.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !event.isPrimary) return;
+      start = point(event);
+      if (!start) return;
+      end = start;
+      svg.setPointerCapture(event.pointerId);
+      paint(bounds(start, end));
+    });
+    svg.addEventListener('pointermove', event => {
+      if (!start) return;
+      end = point(event) || start;
+      paint(bounds(start, end));
+    });
+    svg.addEventListener('pointerup', event => {
+      if (!start) return;
+      end = point(event) || end;
+      const area = bounds(start, end);
+      start = null;
+      svg.releasePointerCapture(event.pointerId);
+      if (area.width < 4 && area.height < 4) return;
+      apiSelectionBounds = area;
+      apiSelection = new Set(events.filter(item => {
+        const x = 86 + Math.max(0, now - item.time) / flowMs * 590;
+        const height = y(item.durationMs);
+        return x >= area.x && x <= area.x + area.width && height >= area.y && height <= area.y + area.height;
+      }).map(apiKey));
+      byId('api-selection-status').textContent = '범위 안의 호출 ' + apiSelection.size + '건 선택됨';
+      byId('api-selection-clear').hidden = false;
+      byId('request-stack').open = true;
+      byId('api-list').scrollTop = 0;
+      renderApi();
+    });
+    svg.addEventListener('pointercancel', () => {
+      start = null;
+      paint(apiSelectionBounds || { x: 0, y: 0, width: 0, height: 0 });
+    });
+  }
+
+  function renderApi(incoming = new Set()) {
+    if (!apiSnapshot) return;
+    const project = byId('project').value;
+    updateApiOptions(apiSnapshot.events);
+    const rows = apiSnapshot.events.filter(event =>
+      (!project || project === event.project) && environmentMatches(event.tier) &&
+      Object.values(apiScopes).every(scope => scope.selected === null || scope.selected.has(scope.key(event))));
+    const durations = rows.map(event => event.durationMs).sort((a, b) => a - b);
+    byId('api-count').textContent = rows.length;
+    const arrivals = byId('api-arrivals');
+    arrivals.replaceChildren();
+    const fresh = rows.filter(event => incoming.has(apiKey(event))).length;
+    if (fresh) el('span', '+' + fresh + ' 새 호출', arrivals).className = 'api-new';
+    byId('api-success').textContent = rows.filter(apiSucceeded).length;
+    byId('api-errors').textContent = rows.filter(apiFailed).length;
+    const p95 = durations.length ? durations[Math.ceil(durations.length * .95) - 1] : null;
+    byId('api-p95').textContent = p95 == null ? '—' : p95 + ' ms';
+    requestVisuals(rows, p95);
+    const list = byId('api-list');
+    const filter = byId('api-filter').value;
+    const visible = rows.filter(event => filter === 'all' ||
+      (filter === 'slow' && event.durationMs >= slowMs) ||
+      (filter === 'error' && apiFailed(event)) ||
+      (filter === 'success' && apiSucceeded(event)));
+    drawApiChart(visible, incoming);
+    const history = apiSelection ? visible.filter(event => apiSelection.has(apiKey(event))) : visible;
+    byId('api-stack-count').textContent = '(' + history.length + (apiSelection ? '건 · 범위 선택' : '건') + ')';
+    if (byId('api-detail').open || list.scrollTop > 0) return;
+    list.replaceChildren();
+    table(list, ['시간', '프로젝트', '환경', '요청', '결과', '응답 시간', '로그'], history.map(event => {
+      const button = el('button', '상세 로그');
+      button.type = 'button';
+      button.onclick = () => selectApi(event);
+      const result = event.status === 0 ? '연결 종료' : event.status + (apiSucceeded(event) ? ' · 성공' : ' · 실패');
+      const latency = event.durationMs + ' ms' + (event.durationMs >= slowMs ? ' · 느림' : '');
+      return [stamp(event.time), event.project, event.host + ' / ' + event.tier, event.method + ' ' + event.route, result, latency, button];
+    }), index => incoming.has(apiKey(history[index])) ? 'api-new' + (apiFailed(history[index]) ? ' api-new-error' : '') : '');
+  }
+
+  async function refreshApi() {
+    if (apiPaused || apiLoading) return;
+    apiLoading = true;
+    const connection = byId('api-connection');
+    try {
+      const previous = new Set((apiSnapshot?.events || []).map(apiKey));
+      if (demo) {
+        const now = Date.now();
+        const sequence = demoSequence++;
+        const statuses = [200, 201, 404, 200, 503, 204];
+        const batch = Array.from({ length: 1 + sequence % 3 }, (_, index) => {
+          const sample = sequence + index;
+          const project = demoData.projects[sample % demoData.projects.length];
+          const tier = sample % 3 === 0 ? 'production' : 'staging';
+          return { id: 'demo-' + sequence + '-' + index, time: now - index * 180, project, host: 'windows', tier, container: project + '-windows' + (tier === 'staging' ? '-staging' : ''),
+            method: sample % 2 ? 'POST' : 'GET', route: sample % 2 ? '/api/*' : '/api/health',
+            status: statuses[sample % statuses.length], durationMs: 14 + sample * 37 % 620 };
+        });
+        apiSnapshot = { time: now, events: [...batch, ...(apiSnapshot?.events || [])].filter(event => event.time >= now - 60000).slice(0, 100) };
+        const demoCpu = [24, 45, 68, 84, 98, 92, 72, 48];
+        demoCpuSample = { time: now, values: demoCpu.map((_, index) => demoCpu[(sequence + index * 3) % demoCpu.length]) };
+        renderDemoCpu();
+        connection.textContent = '데모 · 가상 호출 생성 중';
+      } else {
+        const response = await fetch('/api/requests');
+        if (!response.ok) throw new Error();
+        apiSnapshot = await response.json();
+        connection.textContent = (apiSnapshot.partial ? '일부 엔진 또는 로그 조회 실패 · ' : '') +
+          (apiSnapshot.readable ? '조회 가능한 컨테이너 ' + apiSnapshot.readable + '개' : '조회 가능한 대상 컨테이너 없음');
+      }
+      renderApi(new Set(apiSnapshot.events.map(apiKey).filter(key => !previous.has(key))));
+    } catch {
+      connection.textContent = '조회 실패 · 마지막 수집 결과 표시';
+    } finally { apiLoading = false; }
+  }
+  function detailButton(kind, id, href) {
+    const button = el('button', '단계 보기');
+    button.type = 'button';
+    button.onclick = async () => {
+      const pane = byId(kind + '-detail');
+      pane.replaceChildren();
+      el('h3', '실행 #' + id + ' 상세', pane);
+      const result = el('div', '불러오는 중', pane);
+      try {
+        let jobs;
+        if (demo) jobs = demoDetails(kind, id);
+        else {
+          const response = await fetch('/api/' + kind + '/' + id);
+          if (!response.ok) throw new Error();
+          jobs = await response.json();
+        }
+        result.replaceChildren();
+        for (const job of jobs) {
+          el('h4', [job.name, statusLabel(job.state)].filter(Boolean).join(' · '), result);
+          table(result, ['단계', '결과'], job.steps.map(step => [step.name, statusLabel(step.state)]));
+        }
+      } catch {
+        result.replaceChildren(el('p', '단계 정보를 불러오지 못했습니다.'), link('원본 실행에서 확인', href));
+      }
+    };
+    return button;
+  }
+  function matchesProject(row, project) {
+    return !project || ['windows', 'linux'].some(host =>
+      ['', '-staging', '-previous', '-staging-previous'].some(suffix => row.name === project + '-' + host + suffix));
+  }
+  const openDockerCards = new Set();
+  function byteCount(text) {
+    const match = /^([\d.]+)\s*(B|kB|KB|MB|GB|TB|KiB|MiB|GiB|TiB)(?:\s|$)/.exec(String(text || '').trim());
+    if (!match) return null;
+    const factors = { B: 1, kB: 1e3, KB: 1e3, MB: 1e6, GB: 1e9, TB: 1e12,
+      KiB: 1024, MiB: 1024 ** 2, GiB: 1024 ** 3, TiB: 1024 ** 4 };
+    const result = Number(match[1]) * factors[match[2]];
+    return Number.isFinite(result) ? result : null;
+  }
+  function resourceGauge(parent, name, value, percent, note) {
+    const group = el('div', null, parent);
+    group.className = 'docker-gauge';
+    const title = el('div', null, group);
+    title.className = 'tools';
+    el('span', name, title);
+    el('b', value || '미수집', title);
+    if (percent != null && Number.isFinite(percent)) {
+      const bar = el('progress', null, group);
+      bar.max = 100;
+      bar.value = Math.min(100, Math.max(0, percent));
+      bar.setAttribute('aria-label', name + ' ' + percent.toFixed(1) + '%');
+      if (percent >= 95) { bar.style.accentColor = '#ff667d'; title.className += ' cpu-alert'; }
+      else if (percent >= 80) { bar.style.accentColor = '#ffd185'; title.className += ' cpu-warn'; }
+    }
+    el('small', note, group);
+  }
+  function dockerCard(parent, row, engineName) {
+    const card = el('article', null, parent);
+    card.className = 'docker-card';
+    el('h4', row.name, card);
+    const active = row.state === 'running';
+    const unhealthy = /unhealthy/i.test(row.status || '');
+    const state = el('div', null, card);
+    state.className = 'docker-state';
+    state.style.color = unhealthy ? '#ff667d' : active ? '#70dfd1' : '#a5b7ca';
+    el('span', unhealthy ? '!' : active ? '▶' : '■', state).className = 'state-symbol';
+    el('span', unhealthy ? 'UNHEALTHY' : statusLabel(row.state), state);
+    const cpu = active && row.cpu ? parseFloat(row.cpu) : null;
+    resourceGauge(card, 'CPU', active ? row.cpu : null, cpu, '100% ≈ CPU 1코어');
+    const memory = active ? (row.memory || '').split('/') : [];
+    const used = byteCount(memory[0]), total = byteCount(memory[1]);
+    const percent = used != null && total > 0 ? used / total * 100 : null;
+    resourceGauge(card, '메모리', active ? row.memory : null, percent, '컨테이너에 표시된 메모리 한도 기준');
+    const detail = el('details', null, card);
+    const key = engineName + '/' + row.name;
+    detail.open = openDockerCards.has(key);
+    el('summary', '이미지 · 포트 · I/O 상세', detail);
+    const list = el('dl', null, detail);
+    for (const [label, value] of [['이미지', row.image], ['상태', row.status], ['포트', row.ports], ['네트워크 I/O', row.net], ['디스크 I/O', row.block]]) {
+      el('dt', label, list);
+      el('dd', value || '—', list);
+    }
+    detail.addEventListener('toggle', () => {
+      if (detail.open) openDockerCards.add(key);
+      else openDockerCards.delete(key);
+    });
+  }
+  function storageCard(parent, row) {
+    const card = el('div', null, parent);
+    card.className = 'storage-card';
+    el('h4', row.Type, card);
+    el('b', (row.Size || '—') + ' · ' + row.TotalCount + '개', card);
+    const size = byteCount(row.Size), reclaimable = byteCount(row.Reclaimable);
+    if (size > 0 && reclaimable != null) {
+      const ratio = Math.min(100, Math.max(0, reclaimable / size * 100));
+      const bar = el('div', null, card);
+      bar.className = 'storage-track';
+      bar.setAttribute('role', 'img');
+      bar.setAttribute('aria-label', '사용 중인 저장 공간 중 회수 가능 ' + ratio.toFixed(1) + '%');
+      el('span', null, bar).className = 'storage-kept';
+      bar.children[0].style.width = (100 - ratio) + '%';
+      el('span', null, bar).className = 'storage-freeable';
+      bar.children[1].style.width = ratio + '%';
+    }
+    el('p', '회수 가능 ' + (row.Reclaimable || '미수집'), card);
+  }
+  function showDocker() {
+    const target = byId('docker-content');
+    target.replaceChildren();
+    if (!current) return;
+    if (current.docker.error) { el('p', current.docker.error, target); return; }
+    const filter = byId('filter').value;
+    const project = byId('project').value;
+    for (const engine of current.docker.data) {
+      const group = el('div', null, target);
+      group.className = 'engine';
+      el('h3', engine.name, group);
+      if (engine.error) { el('p', engine.error, group); continue; }
+      const containers = engine.containers.filter(row => matchesProject(row, project) && environmentMatches(containerEnvironment(row)));
+      const running = containers.filter(row => row.state === 'running').length;
+      el('p', '실행 중 ' + running + ' / 전체 ' + containers.length, group);
+      if (engine.warning) { const warning = el('p', engine.warning, group); if (engine.diskUsedPercent >= 80) { warning.setAttribute('role', 'alert'); warning.style.color = engine.diskUsedPercent >= 90 ? '#ff738b' : '#ffc66d'; } }
+      const rows = containers.filter(row => filter === 'all' || (filter === 'running') === (row.state === 'running'));
+      const cards = el('div', null, group);
+      cards.className = 'docker-cards';
+      rows.forEach(row => dockerCard(cards, row, engine.name));
+      if (!rows.length) el('p', '선택 조건에 맞는 컨테이너가 없습니다.', group);
+      el('p', '저장 공간 · 아래 합계는 엔진 전체 기준입니다.', group);
+      el('small', '파랑은 유지 영역, 청록은 회수 가능한 영역입니다. 호스트 디스크의 전체 용량과는 별도입니다.', group);
+      const storage = el('div', null, group);
+      storage.className = 'storage-cards';
+      engine.disk.forEach(row => storageCard(storage, row));
+    }
+  }
+  function statusLabel(state) {
+    return state ? String(state).toUpperCase().replaceAll('_', ' ') : '';
+  }
+  function tone(state) {
+    const key = state?.toLowerCase();
+    if (['failure', 'failed', 'timed_out', 'unstable'].includes(key)) return 'bad';
+    return key === 'success' ? 'ok' : 'wait';
+  }
+  function overview(data, builds, containers) {
+    const runs = data.github.data || [];
+    const deployments = builds.filter(build => build.fields.OPERATION === 'deploy');
+    const write = (id, value, color = 'ok') => {
+      byId(id).textContent = value;
+      byId(id).dataset.tone = color;
+    };
+    const ci = runs[0], cd = deployments[0];
+    statusIcon('visual-ci', ci?.state);
+    statusIcon('visual-cd', cd?.state);
+    write('metric-ci', statusLabel(ci?.state) || (data.github.error ? '미연결' : '기록 없음'), tone(ci?.state));
+    write('metric-cd', statusLabel(cd?.state) || (data.jenkins.error ? '미연결' : '기록 없음'), tone(cd?.state));
+    byId('metric-ci-info').textContent = ci ? 'Run ' + ci.id + ' · 중앙 워크플로' : '릴리스 워크플로';
+    byId('metric-cd-info').textContent = cd ? '#' + cd.number + ' · ' + (cd.fields.RELEASE_TIER || '환경 미지정') : '배포 작업';
+    const active = containers.filter(row => row.state === 'running');
+    const enginesOnline = data.docker.data?.some(engine => !engine.error);
+    write('metric-docker', enginesOnline ? active.length + ' / ' + containers.length : '미연결', enginesOnline ? 'ok' : 'wait');
+    const failures = [...runs, ...builds].filter(item => tone(item.state) === 'bad').length;
+    write('metric-fail', data.github.error && data.jenkins.error ? '—' : failures, failures ? 'bad' : 'ok');
+    metricRing('visual-fail', failures, runs.length + builds.length, '#ff667d', '표시된 실행 기록의 실패 비중');
+    const tiles = byId('visual-docker');
+    tiles.replaceChildren();
+    const cells = el('div', null, tiles);
+    cells.className = 'container-tiles';
+    for (const container of containers) {
+      const tile = el('span', null, cells);
+      tile.className = 'container-tile' + (container.state === 'running' ? '' : ' stopped');
+      tile.title = container.name + ' · ' + container.state;
+      tile.setAttribute('role', 'img');
+      tile.setAttribute('aria-label', tile.title);
+    }
+    if (!containers.length) el('span', enginesOnline ? '대상 없음' : '미연결', cells);
+    const events = byId('activity');
+    events.replaceChildren();
+    for (const item of [...runs.slice(0, 3).map(run => ({ title: 'GitHub Run ' + run.id, state: run.state, date: run.date })),
+      ...builds.slice(0, 3).map(build => ({ title: 'Jenkins #' + build.number, state: build.state, date: build.date }))]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5)) {
+      const row = el('div', null, events);
+      row.className = 'event';
+      el('span', item.title, row);
+      el('b', statusLabel(item.state) || '대기', row).dataset.tone = tone(item.state);
+    }
+    if (!events.children.length) el('p', '조회할 실행 기록이 없습니다.', events);
+    if (!demo) renderCpu(cpuContainers(data), data.time);
+  }
+  const cpuHistory = new Map();
+  function renderDemoCpu() {
+    if (!demoCpuSample) return;
+    const rows = cpuContainers(demoData).map(row => ({
+      ...row, cpu: demoCpuSample.values[demoData.projects.indexOf(row.name.split('-windows')[0])] + '%'
+    }));
+    renderCpu(rows, demoCpuSample.time);
+  }
+  function cpuContainers(data) {
+    const project = byId('project').value;
+    return (data.docker.data || []).flatMap(engine => (engine.containers || [])
+      .filter(row => row.state === 'running' && matchesProject(row, project) && environmentMatches(containerEnvironment(row)))
+      .map(row => ({ ...row, cpuKey: engine.name + '/' + row.name })));
+  }
+  function renderCpu(containers, time) {
+    const cpu = byId('cpu-panel'), warning = byId('cpu-warning');
+    cpu.replaceChildren();
+    const measured = containers.map(row => ({ ...row, usage: parseFloat(row.cpu) }))
+      .filter(row => Number.isFinite(row.usage)).sort((a, b) => b.usage - a.usage).slice(0, 5);
+    const peak = measured[0];
+    warning.textContent = peak?.usage >= 95 ? '위험 · ' + peak.name + ' CPU ' + peak.cpu
+      : peak?.usage >= 80 ? '주의 · ' + peak.name + ' CPU ' + peak.cpu : '';
+    warning.className = peak?.usage >= 95 ? 'cpu-alert' : 'cpu-warn';
+    for (const [key, samples] of cpuHistory) {
+      if (time - samples.at(-1).time > 300000) cpuHistory.delete(key);
+    }
+    for (const row of measured) {
+      const samples = (cpuHistory.get(row.cpuKey) || []).filter(sample => time - sample.time <= 300000);
+      if (samples.at(-1)?.time !== time) samples.push({ time, usage: row.usage });
+      cpuHistory.set(row.cpuKey, samples);
+      const line = el('div', null, cpu);
+      line.className = 'cpu-row';
+      el('span', row.name, line);
+      const chart = svgNode('svg', { class: 'chart cpu-plot', viewBox: '0 0 180 38', role: 'img',
+        'aria-label': row.name + ' CPU 추세, 현재 ' + row.cpu + ', 최근 표본 ' + samples.length + '개' }, line);
+      const max = Math.max(100, ...samples.map(sample => sample.usage));
+      const y = usage => 35 - usage / max * 31;
+      const x = sample => 174 - (time - sample.time) / Math.max(10000, time - samples[0].time) * 168;
+      svgNode('line', { x1: 4, x2: 176, y1: y(80), y2: y(80), class: 'chart-limit' }, chart);
+      const color = row.usage >= 95 ? '#ffadba' : row.usage >= 80 ? '#ffd185' : '#70dfd1';
+      svgNode('polyline', { points: samples.map(sample => x(sample) + ',' + y(sample.usage)).join(' '),
+        fill: 'none', stroke: color, 'stroke-width': 2 }, chart);
+      svgNode('circle', { cx: 174, cy: y(row.usage), r: 3, fill: color }, chart);
+      const status = el('span', row.cpu + (row.usage >= 95 ? ' 위험' : row.usage >= 80 ? ' 주의' : ''), line);
+      status.className = row.usage >= 95 ? 'cpu-alert' : row.usage >= 80 ? 'cpu-warn' : '';
+    }
+    if (!measured.length) el('p', '조회된 CPU 사용량이 없습니다.', cpu);
+  }
+  function render(data) {
+    current = data;
+    const selector = byId('project');
+    const selected = selector.value;
+    selector.replaceChildren(new Option('전체', ''), ...data.projects.map(project => new Option(project, project)));
+    selector.value = data.projects.includes(selected) ? selected : '';
+    const project = selector.value;
+    const containers = (data.docker.data || []).flatMap(engine => engine.containers || []).filter(row => matchesProject(row, project) && environmentMatches(containerEnvironment(row)));
+    const builds = (data.jenkins.data?.builds || []).filter(({ fields }) =>
+      environmentMatches(fields.RELEASE_TIER) &&
+      (!project || fields.SELECTION === 'project:' + project || data.groups[fields.SELECTION]?.includes(project)));
+    const running = data.docker.data?.some(engine => !engine.error) ? containers.filter(row => row.state === 'running').length : null;
+    overview(data, builds, containers);
+    byId('flow-ci').textContent = '· ' + (statusLabel(data.github.data?.[0]?.state) || (data.github.error ? '미연결' : '기록 없음'));
+    byId('flow-cd').textContent = '· ' + (statusLabel(builds[0]?.state) || (data.jenkins.error ? '미연결' : '기록 없음'));
+    byId('flow-docker').textContent = running == null ? '· 미연결' : '· 실행 중 ' + running;
+    const ci = byId('ci-content'), cd = byId('cd-content');
+    ci.replaceChildren();
+    cd.replaceChildren();
+    const github = 'https://github.com/' + data.repository;
+    ci.append(link('GitHub Actions 열기', github + '/actions/workflows/build-project.yml'));
+    cd.append(link('Jenkins project-cd 열기', data.jenkinsJob));
+    if (data.github.error) el('p', data.github.error, ci).className = 'note';
+    else {
+      el('p', '이미지 빌드는 환경 간에 공유됩니다. 단계 보기에서 앱별 작업을 확인하세요.', ci);
+      table(ci, ['Run ID', '상태', '커밋', '실행 시각', '진행 과정'], data.github.data.map(run => {
+        const href = github + '/actions/runs/' + run.id;
+        return [link(String(run.id), href), statusLabel(run.state), run.sha, stamp(run.date), detailButton('github', run.id, href)];
+      }));
+    }
+    if (data.jenkins.error) el('p', data.jenkins.error, cd).className = 'note';
+    else {
+      if (data.jenkins.data.inQueue) el('p', '대기열에 작업이 있습니다.', cd);
+      table(cd, ['작업', '프로젝트 / 그룹', '환경', '상태', 'CI Run ID', '보고서', '진행 과정'], builds.map(build => {
+        const url = data.jenkinsJob + build.number + '/';
+        const reports = el('div');
+        build.reports.forEach(path => reports.append(link(path.split('/').pop(), url + 'artifact/' + path), el('br')));
+        return [link('#' + build.number, url), build.fields.SELECTION, [build.fields.TARGET_HOST, build.fields.RELEASE_TIER, build.fields.OPERATION].filter(Boolean).join(' / '),
+          statusLabel(build.state), build.fields.RELEASE_RUN_ID, build.reports.length ? reports : '—', detailButton('jenkins', build.number, url)];
+      }));
+    }
+    showDocker();
+    byId('updated').textContent = '최근 조회 ' + stamp(data.time);
+  }
+  async function refreshInfrastructure() {
+    const panel=byId('infrastructure-events');
+    try {
+      const data=demo ? {stale:false,events:[{key:'demo/jenkins',status:'healthy',action:'none'},{key:'demo/docker',status:'healthy',action:'none'}],disks:[{name:'demo-docker',percent:42,status:'ok'}]} : await fetch('/api/operations-health').then(r=>{if(!r.ok)throw new Error();return r.json();});
+      byId('infrastructure-status').textContent=data.stale ? '감시 중단 또는 정보 만료 — 복구 감시 프로세스를 확인하세요.' : '30초 주기 감시 · 복구 요청은 실제 health 회복 후 정상으로 표시됩니다.';
+      panel.replaceChildren();
+      for(const item of data.events || []) el('p',item.key+' · '+item.status+' · '+item.action,panel);
+      for(const disk of data.disks || []) {const row=el('p',disk.name+' · 디스크 '+(disk.percent == null ? '확인 불가' : disk.percent+'%')+' · '+disk.status,panel);if(disk.status!=='ok')row.style.color='#ff738b';}
+    } catch {byId('infrastructure-status').textContent='장애 감시 상태 조회 실패';}
+  }
+  refreshInfrastructure();setInterval(refreshInfrastructure,15000);
+  async function refresh() {
+    if (demo) {
+      render(demoData);
+      byId('updated').textContent = '예시 시각 ' + stamp(demoData.time);
+      return;
+    }
+    const button = byId('refresh');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/snapshot');
+      if (!response.ok) throw new Error();
+      render(await response.json());
+    } catch {
+      byId('updated').textContent = '조회 실패 · 운영 대시보드 서버를 확인하세요.';
+    } finally { button.disabled = false; }
+  }
+  byId('refresh').addEventListener('click', refresh);
+  byId('issue-read').addEventListener('click', () => {
+    issueState.read = issueState.issues.map(issue => issue.id);
+    saveIssues();
+  });
+  if (demo) {
+    byId('issue-demo').hidden = false;
+    byId('issue-demo').addEventListener('click', () => mergeIssues([{
+      id: 'demo-' + Date.now() + '-' + demoIssueSequence++, kind: '검사', title: '예시 · 새 보안 검사 이슈',
+      time: new Date().toISOString(), summary: '새 항목이 도착하면 사이드바에 붉은 점이 표시됩니다.'
+    }]));
+  }
+  function highlightSection(hash = location.hash || '#overview') {
+    document.querySelectorAll('.rail a').forEach(anchor => {
+      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : anchor.getAttribute('href') === hash;
+      if (selected) anchor.setAttribute('aria-current', issuesPage || usagePage ? 'page' : 'location');
+      else anchor.removeAttribute('aria-current');
+    });
+  }
+  byId('issue-nav').href = issuesUrl;
+  byId('usage-nav').href = usageUrl;
+  if (issuesPage || usagePage) {
+    document.body.classList.add(issuesPage ? 'issues-page' : 'usage-page');
+    document.title = (issuesPage ? '보안 이슈' : '비용·무료 한도') + ' · 운영 대시보드';
+    byId(issuesPage ? 'issues' : 'usage').hidden = false;
+    document.querySelectorAll('.rail a[href^="#"]').forEach(anchor => {
+      anchor.href = dashboardUrl + anchor.getAttribute('href');
+    });
+  }
+  window.addEventListener('storage', event => {
+    if (event.key === issueStorageKey) {
+      loadIssueState();
+      renderIssues();
+    }
+  });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) {
+      loadIssueState();
+      renderIssues();
+    }
+  });
+  const sidebarSections = ['overview', 'github', 'jenkins', 'docker', 'requests'].map(id => byId(id));
+  let sidebarUpdatePending = false;
+  function syncSidebarToScroll() {
+    sidebarUpdatePending = false;
+    if (issuesPage || usagePage) {
+      highlightSection();
+      return;
+    }
+    const cutoff = Math.min(150, window.innerHeight * .25);
+    const positions = sidebarSections.map(section => ({ section, top: section.getBoundingClientRect().top }));
+    const passed = positions.filter(item => item.top <= cutoff);
+    let selected = passed[0] || positions[0];
+    for (const item of passed) {
+      if (item.top > selected.top + 2 ||
+          (Math.abs(item.top - selected.top) <= 2 && location.hash === '#' + item.section.id)) selected = item;
+    }
+    highlightSection('#' + selected.section.id);
+  }
+  function queueSidebarUpdate() {
+    if (sidebarUpdatePending) return;
+    sidebarUpdatePending = true;
+    requestAnimationFrame(syncSidebarToScroll);
+  }
+  window.addEventListener('scroll', queueSidebarUpdate, { passive: true });
+  window.addEventListener('resize', queueSidebarUpdate);
+  window.addEventListener('hashchange', queueSidebarUpdate);
+  window.addEventListener('pageshow', queueSidebarUpdate);
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(queueSidebarUpdate).observe(document.querySelector('main'));
+  }
+  highlightSection();
+  queueSidebarUpdate();
+  byId('filter').addEventListener('change', showDocker);
+  function changeDashboardScope() {
+    clearApiSelection();
+    byId('jenkins-detail').replaceChildren();
+    if (current) render(current);
+    if (demo) renderDemoCpu();
+    byId('api-list').scrollTop = 0;
+    renderApi();
+  }
+  byId('project').addEventListener('change', changeDashboardScope);
+  byId('environment').addEventListener('change', () => {
+    const tier = byId('environment').value;
+    byId('environment-note').textContent = tier
+      ? (tier === 'staging' ? '개발·검증(staging)' : '운영(production)') + '의 배포 이력·관리 컨테이너·API 호출을 표시합니다.'
+      : '전체 환경과 공통 인프라를 표시합니다.';
+    changeDashboardScope();
+  });
+  byId('api-filter').addEventListener('change', () => {
+    clearApiSelection();
+    byId('api-list').scrollTop = 0;
+    renderApi();
+  });
+  byId('api-detail').addEventListener('close', () => {
+    if (document.activeElement === document.body) byId('api-filter').focus();
+  });
+  byId('api-pause').addEventListener('click', () => {
+    apiPaused = !apiPaused;
+    apiFrozenTime = apiPaused ? Date.now() : null;
+    clearApiSelection();
+    byId('api-chart').classList.toggle('api-flow-paused', apiPaused);
+    byId('api-pause').textContent = apiPaused ? '재개' : '일시 정지';
+    byId('api-pause').setAttribute('aria-pressed', String(apiPaused));
+    if (apiPaused) {
+      byId('api-connection').textContent = '일시 정지됨 · 드래그로 범위를 선택하세요';
+      renderApi();
+    } else refreshApi();
+  });
+  byId('api-selection-clear').addEventListener('click', () => {
+    clearApiSelection();
+    byId('api-list').scrollTop = 0;
+    renderApi();
+  });
+  if (demo) {
+    byId('mode-label').textContent = 'DEMO · 예시 데이터';
+    byId('mode-description').textContent = '가상 실행과 컨테이너로 화면을 체험합니다. 단계 보기와 프로젝트 필터를 눌러 보세요.';
+  }
+  renderIssues();
+  refreshIssues();
+  if (usagePage) {
+    refreshUsage();
+    if (!demo) setInterval(refreshUsage, 60000);
+  }
+  if (!issuesPage && !usagePage) {
+    refresh();
+    refreshApi();
+    setInterval(refreshApi, 1000);
+    if (!demo) setInterval(refresh, 20000);
+  }
+  if (!demo) setInterval(refreshIssues, 30000);
+</script>
