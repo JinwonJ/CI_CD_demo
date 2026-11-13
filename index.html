@@ -126,8 +126,23 @@
   .storage-card h4{margin:0 0 8px}.storage-track{height:13px;border-radius:4px;background:#334b67;overflow:hidden;display:flex;margin:12px 0}
   .storage-kept{background:#65b4ff}.storage-freeable{background:#70dfd1}
 </style>
+<style>
+html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display:none!important}html.demo-signed-in #demo-login{display:none}#demo-login{min-height:100vh;display:grid;place-items:center;padding:24px;background:#0b1524;color:#e9f0fa}#demo-login section{width:min(440px,100%);padding:32px;background:#142236;border:1px solid #30445d;border-radius:18px}#demo-login input:not([type=checkbox]),#demo-login button{width:100%;font:inherit;padding:12px;border:1px solid #3c5473;border-radius:8px;background:#0d1c2f;color:white}#demo-login label{display:block;margin:18px 0}#demo-login button{background:#218cbd;cursor:pointer}#demo-login p{color:#aec1da}#demo-login-message{min-height:26px;color:#ff9caa!important}
+</style>
+<div id="demo-login"><section><small>OPS MONITOR · PUBLIC DEMO</small><h1>관리자 로그인</h1><p>가상 데이터 체험용 로그인입니다. 실제 보안 인증이나 비공개 자료 접근 통제가 아닙니다.</p><form id="demo-login-form"><label>아이디<input id="demo-username" autocomplete="username" maxlength="64" required></label><label>비밀번호<input id="demo-password" type="password" autocomplete="current-password" maxlength="256" required></label><label><input id="demo-remember" type="checkbox"> 아이디 저장</label><button type="submit">로그인</button><p id="demo-login-message" role="alert"></p></form></section></div>
+<script>
+(()=>{
+ const key='ops-public-demo-session',rememberKey='ops-public-demo-username';const username=document.getElementById('demo-username'),password=document.getElementById('demo-password'),remember=document.getElementById('demo-remember'),message=document.getElementById('demo-login-message');
+ try{const saved=localStorage.getItem(rememberKey);if(saved){username.value=saved;remember.checked=true;}const session=JSON.parse(sessionStorage.getItem(key)||'null');if(session?.expires>Date.now())document.documentElement.classList.add('demo-signed-in');}catch{}
+ remember.addEventListener('change',()=>{if(!remember.checked)try{localStorage.removeItem(rememberKey);}catch{}});
+ window.publicDemoLogout=()=>{try{sessionStorage.removeItem(key);}catch{}document.documentElement.classList.remove('demo-signed-in');password.value='';message.textContent='로그아웃되었습니다.';username.focus();};
+ document.getElementById('demo-login-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;try{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(username.value+'\0'+password.value));const hash=Array.from(new Uint8Array(bytes),value=>value.toString(16).padStart(2,'0')).join('');password.value='';if(username.value!=="lctech"||hash!=="a42afbbc6cfc14a9ebdba447252c3f326ef233e97ac151a927e46635a645523e"){message.textContent='아이디 또는 비밀번호를 확인하세요.';return;}try{sessionStorage.setItem(key,JSON.stringify({expires:Date.now()+8*60*60*1000}));if(remember.checked)localStorage.setItem(rememberKey,username.value);else localStorage.removeItem(rememberKey);}catch{}document.documentElement.classList.add('demo-signed-in');message.textContent='';}catch{message.textContent='브라우저의 로그인 기능을 사용할 수 없습니다.';}finally{button.disabled=false;}});
+})();
+</script>
+
 <nav class="rail" aria-label="운영 화면">
   <div class="brand"><span>OP</span> Ops Monitor</div>
+  <button id="logout" type="button">로그아웃</button>
   <a href="#overview" aria-current="location">운영 개요</a>
   <a href="#github">GitHub 빌드</a>
   <a href="#jenkins">Jenkins 배포</a>
@@ -241,6 +256,7 @@
 </main>
 <script>
   const fetch = () => Promise.reject(new Error("Live APIs are disabled in the public demo"));
+  document.getElementById('logout').addEventListener('click',async()=>{if(typeof window.publicDemoLogout==='function'){window.publicDemoLogout();return;}try{const response=await fetch('/auth/logout',{method:'POST',headers:{'X-Requested-With':'dashboard'}});if(response.ok)location.replace('/login');}catch{}});
   const params = new URLSearchParams(location.search);
   const fileMode = true; // Standalone public demo: query-only navigation
   const demo = true; // Public exports never connect to live services
