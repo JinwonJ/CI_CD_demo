@@ -275,6 +275,7 @@
       { Type: 'Local Volumes', Size: '540 MB', TotalCount: 2, Reclaimable: '0 B' }
     ] }] }
   };
+  for (const engine of demoData.docker.data) for (const row of engine.containers) row.identity = { publisher:'demo-ci-bot', buildActor:'demo-builder', buildRequester:'demo-release-manager', author:row.name.startsWith('sample-web')?'demo-developer-a':'demo-developer-b', committer:'demo-integrator', message:'feat: sample dashboard update', date:demoDate, revision:'a1b2c3d4'.repeat(5), source:'example-org/'+(row.name.startsWith('sample-web')?'sample-web':'demo-api'), commitUrl:'', digest:'sha256:'+'a'.repeat(64), deployedBy:'demo-operator', approvedBy:'demo-approver', deployedAt:demoDate };
   function demoDetails(kind, id) {
     const ciSteps = id === 1001
       ? [['앱 소스 체크아웃', 'success'], ['Gitleaks', 'failure'], ['이미지 빌드', 'skipped']]
@@ -889,6 +890,7 @@
     const card = el('article', null, parent);
     card.className = 'docker-card';
     el('h4', row.name, card);
+    el('p', '소스 커밋 작성자: ' + (row.identity?.author || '미수집') + ' · 빌드 요청자: ' + (row.identity?.buildRequester || '미수집'), card);
     const active = row.state === 'running';
     const unhealthy = /unhealthy/i.test(row.status || '');
     const state = el('div', null, card);
@@ -905,12 +907,18 @@
     const detail = el('details', null, card);
     const key = engineName + '/' + row.name;
     detail.open = openDockerCards.has(key);
-    el('summary', '이미지 · 포트 · I/O 상세', detail);
+    el('summary', '이미지 · 작성자 · 배포 이력 상세', detail);
     const list = el('dl', null, detail);
     for (const [label, value] of [['이미지', row.image], ['상태', row.status], ['포트', row.ports], ['네트워크 I/O', row.net], ['디스크 I/O', row.block]]) {
       el('dt', label, list);
       el('dd', value || '—', list);
     }
+    const identity = row.identity || {};
+    el('h4', '이미지·소스·배포 담당자', detail);
+    const attribution = el('dl', null, detail);
+    for (const [label,value] of [['이미지 게시 방식/계정',identity.publisher],['빌드 실행 계정',identity.buildActor],['빌드 요청자',identity.buildRequester],['소스 최종 커밋 작성자',identity.author],['소스 최종 커밋 반영자',identity.committer],['소스 저장소',identity.source],['소스 커밋 SHA',identity.revision],['커밋 메시지',identity.message],['커밋 시각',identity.date],['이미지 digest',identity.digest],['배포 요청자',identity.deployedBy],['배포 승인자',identity.approvedBy],['배포 시각',identity.deployedAt]]) {el('dt',label,attribution);el('dd',value || '미수집 · 기존 이미지 또는 기록 없음',attribution);}
+    if(identity.commitUrl) {const commit=link('소스 커밋 원문 확인',identity.commitUrl);detail.append(commit);}
+    el('p','작성자 정보는 이미지의 메타데이터이며 신원 검증이나 전체 코드 저작자를 의미하지 않습니다. 이메일은 수집하지 않습니다.',detail);
     detail.addEventListener('toggle', () => {
       if (detail.open) openDockerCards.add(key);
       else openDockerCards.delete(key);
