@@ -18,11 +18,11 @@
   @media(max-width:850px){.grid{grid-template-columns:1fr;gap:0}main{padding:12px}header,section{padding:14px}}
   :root{color-scheme:dark;--panel:#142235;--line:#293b52;--muted:#a5b7ca;--accent:#69dfd0}
   body{background:#0c1523;color:#edf4fc}
-  .rail{position:fixed;inset:0 auto 0 0;width:184px;padding:23px 14px;background:#101c2d;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .rail{overflow-y:auto;position:fixed;inset:0 auto 0 0;width:184px;padding:23px 14px;background:#101c2d;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
   .brand{display:flex;align-items:center;gap:9px;margin:0 0 24px;font-weight:800}
   .brand span{display:grid;place-items:center;width:32px;height:32px;background:var(--accent);color:#102735;border-radius:8px;font-size:11px}
-  .rail a{color:var(--muted);text-decoration:none;padding:9px 10px;border-radius:7px}
-  .rail a:hover,.rail a[aria-current="location"]{color:var(--accent);background:#1b3044}
+  .rail a{flex-shrink:0;color:var(--muted);text-decoration:none;padding:9px 10px;border-radius:7px}
+  .rail a:hover,.rail a[aria-current="location"],.rail a[aria-current="page"]{color:var(--accent);background:#1b3044}
   main{max-width:1660px;margin:0 0 0 184px;padding:26px}
   header,section{background:var(--panel);border-color:var(--line);border-radius:10px}
   header{background:linear-gradient(110deg,#15263b,#123039);padding:20px 22px}
@@ -150,7 +150,8 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
   <a href="#jenkins">Jenkins 배포</a>
   <a href="#docker">Docker 리소스</a>
   <a id="control-nav" href="/control">서비스 관리 데모</a>
-  <a id="load-nav" href="/load-tests">부하 테스트</a>
+  <a id="load-nav" href="/load-tests">간단 부하 테스트</a>
+  <a id="jmeter-nav" href="/jmeter?demo=1">JMeter 부하 테스트</a>
   <a href="#requests">실시간 API</a>
   <a id="issue-nav" href="/issues">보안 이슈<span id="issue-dot" class="issue-dot" hidden aria-hidden="true"></span></a>
   <a id="usage-nav" href="/usage">비용·무료 한도</a>
@@ -270,7 +271,7 @@ const demoLoadTargets=[
  {id:'sample-pod',label:'sample-web · staging Pod',type:'pod',environment:'staging',enabled:true,reference:'demo-cluster/staging/sample-web-demo',path:'/api/health'}
 ];
 function createDemoLoad(target,settings,now=Date.now()){if(!target||!['container','image','pod'].includes(target.type)||!Number.isInteger(settings.rps)||settings.rps<1||settings.rps>20||!Number.isInteger(settings.concurrency)||settings.concurrency<1||settings.concurrency>10||!Number.isInteger(settings.durationSeconds)||settings.durationSeconds<1||settings.durationSeconds>30)throw new Error('부하 설정 허용 범위를 확인하세요.');return {id:'demo-load-'+now,createdAt:now,status:'preparing',simulation:true,target,settings,elapsedTotal:0,samples:[]};}
-function advanceDemoLoad(previous){if(!['preparing','running'].includes(previous.status))return previous;const run={...previous,samples:[...previous.samples],elapsedTotal:previous.elapsedTotal+1000};const prepareMs=run.target.type==='container'?1000:2000;if(run.elapsedTotal<=prepareMs)return run;run.status='running';const elapsedMs=Math.min(run.settings.durationSeconds*1000,run.elapsedTotal-prepareMs),seconds=elapsedMs/1000,factor=run.settings.rps/(run.settings.concurrency*3),capacity=run.settings.concurrency*3,actualRps=Math.min(run.settings.rps,capacity),completed=Math.floor(seconds*actualRps),failed=Math.floor(completed*(factor>1?.03:0)),p95Ms=Math.round(45+factor*factor*120+(seconds%4)*7);run.summary={elapsedMs,started:completed,completed,failed,errors:0,cancelled:0,dropped:Math.max(0,Math.floor(seconds*run.settings.rps)-completed),actualRps,averageMs:Math.round(p95Ms*.55),p95Ms,errorRate:completed?failed/completed:0,statusCodes:{200:completed-failed,503:failed},bytes:completed*128};run.samples.push({time:run.createdAt+run.elapsedTotal,rps:actualRps,p95Ms,failed});if(seconds>=run.settings.durationSeconds){run.status='completed';run.finishedAt=run.createdAt+run.elapsedTotal;run.verdict=run.summary.errorRate<=.01&&p95Ms<=500&&run.summary.dropped===0?'passed':'failed';}return run;}
+function advanceDemoLoad(previous){if(!['preparing','running'].includes(previous.status))return previous;const run={...previous,samples:[...previous.samples],elapsedTotal:previous.elapsedTotal+1000};const prepareMs=run.target.type==='container'?1000:2000;if(run.elapsedTotal<=prepareMs)return run;run.status='running';const elapsedMs=Math.min(run.settings.durationSeconds*1000,run.elapsedTotal-prepareMs),seconds=elapsedMs/1000,factor=run.settings.rps/(run.settings.concurrency*3),capacity=run.settings.concurrency*3,actualRps=Math.min(run.settings.rps,capacity),completed=Math.floor(seconds*actualRps),failed=Math.floor(completed*(factor>1?.03:0)),p95Ms=Math.round(45+factor*factor*120+(seconds%4)*7);run.summary={elapsedMs,started:completed,completed,failed,errors:0,cancelled:0,dropped:Math.max(0,Math.floor(seconds*run.settings.rps)-completed),actualRps,averageMs:Math.round(p95Ms*.55),p95Ms,errorRate:completed?failed/completed:0,statusCodes:{200:completed-failed,503:failed},bytes:completed*128};const apis=run.settings.apis?.filter(api=>api.enabled!==false)||[{path:run.target.path}];run.summary.endpoints=Object.fromEntries(apis.map((api,index)=>{const n=Math.floor(completed/apis.length)+(index<completed%apis.length?1:0);return [api.path,{started:n,completed:n,failed:Math.floor(n*(factor>1?.03:0)),cancelled:0}];}));run.samples.push({time:run.createdAt+run.elapsedTotal,rps:actualRps,p95Ms,failed});if(seconds>=run.settings.durationSeconds){run.status='completed';run.finishedAt=run.createdAt+run.elapsedTotal;run.verdict=run.summary.errorRate<=.01&&p95Ms<=500&&run.summary.dropped===0?'passed':'failed';}return run;}
 
 window.LoadDemo={demoLoadTargets,createDemoLoad,advanceDemoLoad};
 })();
@@ -319,7 +320,8 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   const issuesPage = location.pathname === '/issues' || (fileMode && params.get('view') === 'issues');
   const usagePage = location.pathname === '/usage' || (fileMode && params.get('view') === 'usage');
   const controlPage = location.pathname === '/control' || (fileMode && params.get('view') === 'control');
-  const loadPage = location.pathname === '/load-tests' || (fileMode && params.get('view') === 'load-tests');
+  const jmeterPage = location.pathname === '/jmeter' || (fileMode && params.get('view') === 'jmeter');
+  const loadPage = jmeterPage || location.pathname === '/load-tests' || (fileMode && params.get('view') === 'load-tests');
   const loadUrl = fileMode ? '?view=load-tests' : '/load-tests?demo=1';
   const separatePage = issuesPage || usagePage || controlPage || loadPage;
   const controlUrl = fileMode ? '?view=control' : demo ? '/control?demo=1' : '/control';
@@ -948,9 +950,9 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
     const panel=byId('load-chart');panel.replaceChildren();if(loadRun?.samples.length){const svg=svgNode('svg',{viewBox:'0 0 800 120',class:'chart','aria-label':'가상 P95 응답 시간 추세'},panel);const max=Math.max(500,...loadRun.samples.map(sample=>sample.p95Ms));svgNode('polyline',{fill:'none',stroke:'#22d3ee','stroke-width':3,points:loadRun.samples.map((sample,index)=>(10+index/Math.max(1,loadRun.samples.length-1)*780)+','+(110-sample.p95Ms/max*90)).join(' ')},svg);}
     const history=byId('load-history');history.replaceChildren();table(history,['시각','대상','종류','상태','결과'],loadHistory.map(run=>[stamp(run.createdAt),run.target.label,run.target.type,statusLabel(run.status),run.verdict||'—']));
   }
-  function saveLoadHistory(){if(!loadRun||loadActive())return;loadHistory=[loadRun,...loadHistory.filter(run=>run.id!==loadRun.id)].slice(0,20);try{localStorage.setItem('ops-public-load-history',JSON.stringify(loadHistory));}catch{}}
+  function saveLoadHistory(){if(!loadRun||loadActive())return;loadHistory=[loadRun,...loadHistory.filter(run=>run.id!==loadRun.id)].slice(0,20);try{localStorage.setItem((jmeterPage?'ops-public-jmeter-history':'ops-public-load-history'),JSON.stringify(loadHistory));}catch{}}
   if(loadPage){try{loadHistory=JSON.parse(localStorage.getItem('ops-public-load-history')||'[]');}catch{}loadTargets();drawLoad();byId('load-kind').addEventListener('change',loadTargets);byId('load-target').addEventListener('change',loadReference);
-    byId('load-form').addEventListener('submit',event=>{event.preventDefault();if(loadActive())return;const target=window.LoadDemo.demoLoadTargets.find(item=>item.id===byId('load-target').value);const settings={rps:Number(byId('load-rps').value),concurrency:Number(byId('load-concurrency').value),durationSeconds:Number(byId('load-duration').value)};if(!confirm('[가상 부하 테스트] '+target.label+' · '+settings.rps+' RPS · '+settings.durationSeconds+'초. 실제 요청은 보내지 않습니다. 계속하시겠습니까?'))return;loadRun=window.LoadDemo.createDemoLoad(target,settings);drawLoad();});
+    byId('load-form').addEventListener('submit',event=>{event.preventDefault();if(loadActive())return;const target=window.LoadDemo.demoLoadTargets.find(item=>item.id===byId('load-target').value);const settings={engine:jmeterPage?'jmeter':'native',rps:Number(byId('load-rps').value),concurrency:Number(byId('load-concurrency').value),durationSeconds:Number(byId('load-duration').value)};if(!confirm('[가상 부하 테스트] '+target.label+' · '+settings.rps+' RPS · '+settings.durationSeconds+'초. 실제 요청은 보내지 않습니다. 계속하시겠습니까?'))return;loadRun=window.LoadDemo.createDemoLoad(target,settings);drawLoad();});
     byId('load-stop').addEventListener('click',()=>{if(!loadActive())return;loadRun={...loadRun,status:'cancelled',verdict:'not-evaluated',finishedAt:Date.now()};saveLoadHistory();drawLoad();});setInterval(()=>{if(!loadActive())return;loadRun=window.LoadDemo.advanceDemoLoad(loadRun);saveLoadHistory();drawLoad();},1000);
   }
 
@@ -1292,19 +1294,21 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   }
   function highlightSection(hash = location.hash || '#overview') {
     document.querySelectorAll('.rail a').forEach(anchor => {
-      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : loadPage ? anchor.id === 'load-nav' : anchor.getAttribute('href') === hash;
+      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : loadPage ? anchor.id === (jmeterPage?'jmeter-nav':'load-nav') : anchor.getAttribute('href') === hash;
       if (selected) anchor.setAttribute('aria-current', separatePage ? 'page' : 'location');
       else anchor.removeAttribute('aria-current');
     });
   }
   byId('load-nav').href = loadUrl;
+  byId('jmeter-nav').href = fileMode ? '?view=jmeter' : '/jmeter?demo=1';
+  if(jmeterPage){byId('load-tests').querySelector('h1').textContent='JMeter 부하 테스트 · 가상 체험';byId('load-tests').querySelector('.note').textContent='공개·기존 HTML 화면은 JMeter 실행 흐름을 모의 체험합니다. Java 프로세스를 실행하지 않습니다. 실제 실행은 로컬 Next.js 관리자에서 로그인 → JMeter 부하 테스트 → 실제 테스트 서비스를 선택하세요.';}
   byId('control-nav').href = controlUrl;
   byId('control-home').href = dashboardUrl;
   byId('issue-nav').href = issuesUrl;
   byId('usage-nav').href = usageUrl;
   if (separatePage) {
     document.body.classList.add(issuesPage ? 'issues-page' : usagePage ? 'usage-page' : controlPage ? 'control-page' : 'load-page');
-    document.title = (issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : controlPage ? '서비스 관리 데모' : '부하 테스트') + ' · 운영 대시보드';
+    document.title = (issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : controlPage ? '서비스 관리 데모' : jmeterPage ? 'JMeter 부하 테스트' : '간단 부하 테스트') + ' · 운영 대시보드';
     byId(issuesPage ? 'issues' : usagePage ? 'usage' : controlPage ? 'service-control' : 'load-tests').hidden = false;
     document.querySelectorAll('.rail a[href^="#"]').forEach(anchor => {
       anchor.href = dashboardUrl + anchor.getAttribute('href');
