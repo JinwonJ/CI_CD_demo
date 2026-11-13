@@ -99,6 +99,7 @@
   .issue-card p{overflow-wrap:anywhere}
   .issues-page main > :not(#issues){display:none}
   .usage-page main > :not(#usage){display:none}
+  .control-page main > :not(#service-control){display:none}
   .metric-visual{height:92px;display:flex;align-items:center;justify-content:center;margin:8px 0}
   .metric-visual svg{width:88px;height:88px}
   .metric-visual svg text{font:700 15px system-ui;fill:#edf4fc}
@@ -131,7 +132,7 @@
   <a href="#github">GitHub 빌드</a>
   <a href="#jenkins">Jenkins 배포</a>
   <a href="#docker">Docker 리소스</a>
-  <a href="#service-control">서비스 제어</a>
+  <a id="control-nav" href="/control" target="_blank" rel="noopener noreferrer" title="새 탭에서 서비스 관리 데모 열기">서비스 관리 데모 ↗</a>
   <a href="#requests">실시간 API</a>
   <a id="issue-nav" href="/issues">보안 이슈<span id="issue-dot" class="issue-dot" hidden aria-hidden="true"></span></a>
   <a id="usage-nav" href="/usage">비용·무료 한도</a>
@@ -164,9 +165,10 @@
     <section id="github"><h2>GitHub · 릴리스 빌드</h2><p>Gitleaks → 이미지 빌드 → 스모크 테스트 → Trivy</p><div id="ci-content"></div><div id="github-detail" aria-live="polite"></div></section>
     <section id="jenkins"><h2>Jenkins · 배포 이력</h2><p>Run ID 검증 → 승인 → 컨테이너 교체 → 스테이징 ZAP</p><div id="cd-content"></div><div id="jenkins-detail" aria-live="polite"></div></section>
   </div>
-  <section id="service-control">
-    <h2>서비스 제어 · 시작 / 중지 / 재시작</h2>
-    <p>등록된 CI/CD 컨테이너만 제어합니다. 전체 작업은 아래 환경 필터에 표시된 대상에 적용됩니다. 중지하면 자동 복구를 일시 중지하고, 시작·재시작 성공 시 다시 허용합니다.</p>
+  <section id="service-control" hidden>
+    <h1>서비스 관리 데모</h1>
+    <p><strong>시뮬레이션 전용 · 실제 Docker와 통신하지 않습니다.</strong> <a id="control-home" href="/">대시보드로 이동</a></p>
+    <p>가상 컨테이너의 시작·중지·재시작 화면을 체험합니다. 전체 작업은 아래 환경 필터의 가상 대상에만 적용되며 새로고침하면 초기화됩니다.</p>
     <div class="tools"><label>제어 환경 <select id="control-tier"><option value="">전체 환경·인프라</option><option value="staging">개발·검증</option><option value="production">운영</option><option value="infrastructure">공통 인프라</option></select></label><button id="control-refresh" type="button">상태 갱신</button></div>
     <div class="tools" id="control-bulk"><button type="button" data-control-action="start">전체 시작</button><button type="button" data-control-action="stop">전체 중지</button><button type="button" data-control-action="restart">전체 재시작</button></div>
     <p id="control-note" role="status">제어 대상 확인 중</p><div id="control-targets"></div><div id="control-result" aria-live="polite"></div>
@@ -244,6 +246,9 @@
   const demo = true; // Public exports never connect to live services
   const issuesPage = location.pathname === '/issues' || (fileMode && params.get('view') === 'issues');
   const usagePage = location.pathname === '/usage' || (fileMode && params.get('view') === 'usage');
+  const controlPage = location.pathname === '/control' || (fileMode && params.get('view') === 'control');
+  const separatePage = issuesPage || usagePage || controlPage;
+  const controlUrl = fileMode ? '?view=control' : demo ? '/control?demo=1' : '/control';
   const dashboardUrl = fileMode ? location.pathname : demo ? '/?demo=1' : '/';
   const issuesUrl = fileMode ? '?view=issues' : demo ? '/issues?demo=1' : '/issues';
   const usageUrl = fileMode ? '?view=usage' : demo ? '/usage?demo=1' : '/usage';
@@ -814,16 +819,9 @@
     };
     return button;
   }
-  let controlSession;
   let controlRows=[];
   let controlBusy=false;
   const demoControlRows = demoData.docker.data[0].containers.filter(row => !row.name.endsWith('-previous')).map(row=>({id:'demo/'+row.name,name:row.name,tier:row.tier || 'staging',state:row.state,paused:false}));
-  async function controlFetch(path, body) {
-    if (demo) throw new Error('Demo never calls control APIs');
-    if (!controlSession) { const response=await fetch('/api/control/session',{headers:{'X-Control-Client':'dashboard'}}); if(!response.ok)throw new Error();controlSession=(await response.json()).token; }
-    const response=await fetch('/api/control/'+path,{method:body?'POST':'GET',headers:{'X-Control-Token':controlSession,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
-    if(!response.ok){if(response.status===403)controlSession=null;throw new Error();}return response.json();
-  }
   function visibleControlRows(){const tier=byId('control-tier').value;return controlRows.filter(row=>!tier || row.tier===tier);}
   function renderControls(){
     const panel=byId('control-targets');panel.replaceChildren();
@@ -835,26 +833,27 @@
     }));
     byId('control-bulk').querySelectorAll('button').forEach(b=>b.disabled=controlBusy || !rows.length);
     byId('control-refresh').disabled=controlBusy;
-    byId('control-note').textContent=(demo?'DEMO · 가상 제어만 수행합니다. ':'LOCAL · 실제 컨테이너에 적용됩니다. ')+rows.length+'개 대상'+(controlBusy?' · 작업 중':'');
+    byId('control-note').textContent='DEMO · 가상 상태만 변경합니다. '+rows.length+'개 대상'+(controlBusy?' · 작업 중':'');
   }
-  async function refreshControls(){if(controlBusy)return;try{controlRows=demo?demoControlRows:(await controlFetch('targets')).targets;renderControls();}catch{byId('control-note').textContent='제어 대상 조회 실패 — 로컬 서버와 Docker 연결을 확인하세요.';}}
+  async function refreshControls(){if(controlBusy)return;try{controlRows=demoControlRows;renderControls();}catch{byId('control-note').textContent='데모 화면을 불러오지 못했습니다. 새로고침하세요.';}}
   async function performControl(action,rows){
     if(controlBusy || !rows.length)return;
     const label={start:'시작',stop:'중지',restart:'재시작'}[action];
-    if(!window.confirm((demo?'[데모] ':'[실제 서비스 제어] ')+rows.length+'개 '+label+' 요청\n'+rows.map(r=>r.name+' ('+r.tier+')').join('\n')+'\n중지·재시작은 서비스 접속과 실행 중인 배포에 영향을 줄 수 있습니다. 계속하시겠습니까?'))return;
-    controlBusy=true;renderControls();const resultPanel=byId('control-result');resultPanel.replaceChildren(el('p','작업 중 — 창을 닫아도 이미 요청된 작업은 계속될 수 있습니다.'));
+    if(!window.confirm('[데모] '+rows.length+'개 '+label+' 요청\n'+rows.map(r=>r.name+' ('+r.tier+')').join('\n')+'\n가상 상태만 변경됩니다. 실제 서비스에는 영향이 없습니다. 계속하시겠습니까?'))return;
+    controlBusy=true;renderControls();const resultPanel=byId('control-result');resultPanel.replaceChildren(el('p','데모 실행 중'));
     try{
       let response;
-      if(demo){await new Promise(resolve=>setTimeout(resolve,450));rows.forEach(row=>{row.state=action==='stop'?'stopped':'running';row.paused=action==='stop';for(const engine of demoData.docker.data)for(const container of engine.containers){if(container.name===row.name){container.state=action==='stop'?'exited':'running';container.status=action==='stop'?'Exited (0)':'Up (healthy)';}}});response={results:rows.map(row=>({id:row.id,ok:true}))};showDocker();}
-      else response=await controlFetch('apply',{action,ids:rows.map(row=>row.id),confirm:action+':'+rows.length});
-      resultPanel.replaceChildren();for(const result of response.results)el('p',result.id+' · '+(result.ok?'요청 완료 — 상태를 갱신해 확인하세요.':'실패 · '+result.error),resultPanel);
-    }catch{resultPanel.replaceChildren(el('p','요청 실패 또는 결과 확인 불가. 중복 요청 전에 상태를 갱신하고 감사 이력을 확인하세요.'));}
+      {await new Promise(resolve=>setTimeout(resolve,450));rows.forEach(row=>{row.state=action==='stop'?'stopped':'running';row.paused=action==='stop';for(const engine of demoData.docker.data)for(const container of engine.containers){if(container.name===row.name){container.state=action==='stop'?'exited':'running';container.status=action==='stop'?'Exited (0)':'Up (healthy)';}}});response={results:rows.map(row=>({id:row.id,ok:true}))};showDocker();}
+      resultPanel.replaceChildren();for(const result of response.results)el('p',result.id+' · '+(result.ok?'데모 반영 완료':'실패 · '+result.error),resultPanel);
+    }catch{resultPanel.replaceChildren(el('p','데모 실행 실패. 새로고침해 다시 체험하세요.'));}
     finally{controlBusy=false;await refreshControls();}
   }
+  if (controlPage) {
   byId('control-refresh').addEventListener('click',refreshControls);
   byId('control-tier').addEventListener('change',renderControls);
   byId('control-bulk').querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>performControl(button.dataset.controlAction,visibleControlRows())));
   refreshControls();setInterval(refreshControls,15000);
+  }
 
   function matchesProject(row, project) {
     return !project || ['windows', 'linux'].some(host =>
@@ -1151,17 +1150,20 @@
   }
   function highlightSection(hash = location.hash || '#overview') {
     document.querySelectorAll('.rail a').forEach(anchor => {
-      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : anchor.getAttribute('href') === hash;
-      if (selected) anchor.setAttribute('aria-current', issuesPage || usagePage ? 'page' : 'location');
+      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : anchor.getAttribute('href') === hash;
+      if (selected) anchor.setAttribute('aria-current', separatePage ? 'page' : 'location');
       else anchor.removeAttribute('aria-current');
     });
   }
+  byId('control-nav').href = controlUrl;
+  byId('control-home').href = dashboardUrl;
+  if(controlPage) byId('control-nav').removeAttribute('target');
   byId('issue-nav').href = issuesUrl;
   byId('usage-nav').href = usageUrl;
-  if (issuesPage || usagePage) {
-    document.body.classList.add(issuesPage ? 'issues-page' : 'usage-page');
-    document.title = (issuesPage ? '보안 이슈' : '비용·무료 한도') + ' · 운영 대시보드';
-    byId(issuesPage ? 'issues' : 'usage').hidden = false;
+  if (separatePage) {
+    document.body.classList.add(issuesPage ? 'issues-page' : usagePage ? 'usage-page' : 'control-page');
+    document.title = (issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : '서비스 관리 데모') + ' · 운영 대시보드';
+    byId(issuesPage ? 'issues' : usagePage ? 'usage' : 'service-control').hidden = false;
     document.querySelectorAll('.rail a[href^="#"]').forEach(anchor => {
       anchor.href = dashboardUrl + anchor.getAttribute('href');
     });
@@ -1178,7 +1180,7 @@
       renderIssues();
     }
   });
-  const sidebarSections = ['overview', 'github', 'jenkins', 'service-control', 'docker', 'requests'].map(id => byId(id));
+  const sidebarSections = ['overview', 'github', 'jenkins', 'docker', 'requests'].map(id => byId(id));
   let sidebarUpdatePending = false;
   function syncSidebarToScroll() {
     sidebarUpdatePending = false;
@@ -1262,7 +1264,7 @@
     refreshUsage();
     if (!demo) setInterval(refreshUsage, 60000);
   }
-  if (!issuesPage && !usagePage) {
+  if (!separatePage) {
     refresh();
     refreshApi();
     setInterval(refreshApi, 1000);
