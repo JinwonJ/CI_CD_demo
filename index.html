@@ -751,13 +751,39 @@
       connection.textContent = '조회 실패 · 마지막 수집 결과 표시';
     } finally { apiLoading = false; }
   }
+  const selectedDetails = { github: null, jenkins: null };
+  function syncDetailButtons(kind) {
+    document.querySelectorAll('[data-detail-kind="' + kind + '"]').forEach(button => {
+      const expanded = selectedDetails[kind] === button.dataset.detailId;
+      button.textContent = expanded ? '단계 닫기' : '단계 보기';
+      button.setAttribute('aria-expanded', String(expanded));
+    });
+  }
+  function closeDetails(kind) {
+    selectedDetails[kind] = null;
+    byId(kind + '-detail').replaceChildren();
+    syncDetailButtons(kind);
+  }
   function detailButton(kind, id, href) {
     const button = el('button', '단계 보기');
     button.type = 'button';
+    button.dataset.detailKind = kind;
+    button.dataset.detailId = String(id);
+    button.setAttribute('aria-controls', kind + '-detail');
+    button.setAttribute('aria-expanded', String(selectedDetails[kind] === String(id)));
+    if (selectedDetails[kind] === String(id)) button.textContent = '단계 닫기';
     button.onclick = async () => {
+      if (selectedDetails[kind] === String(id)) { closeDetails(kind); return; }
+      selectedDetails[kind] = String(id);
+      syncDetailButtons(kind);
       const pane = byId(kind + '-detail');
       pane.replaceChildren();
-      el('h3', '실행 #' + id + ' 상세', pane);
+      const heading = el('div', null, pane);
+      heading.className = 'tools';
+      el('h3', '실행 #' + id + ' 상세', heading);
+      const close = el('button', '상세 닫기', heading);
+      close.type = 'button';
+      close.onclick = () => { closeDetails(kind); document.querySelector('[data-detail-kind="' + kind + '"][data-detail-id="' + id + '"]')?.focus(); };
       const result = el('div', '불러오는 중', pane);
       try {
         let jobs;
@@ -767,12 +793,14 @@
           if (!response.ok) throw new Error();
           jobs = await response.json();
         }
+        if (selectedDetails[kind] !== String(id) || !pane.contains(result)) return;
         result.replaceChildren();
         for (const job of jobs) {
           el('h4', [job.name, statusLabel(job.state)].filter(Boolean).join(' · '), result);
           table(result, ['단계', '결과'], job.steps.map(step => [step.name, statusLabel(step.state)]));
         }
       } catch {
+        if (selectedDetails[kind] !== String(id) || !pane.contains(result)) return;
         result.replaceChildren(el('p', '단계 정보를 불러오지 못했습니다.'), link('원본 실행에서 확인', href));
       }
     };
@@ -1135,7 +1163,7 @@
   byId('filter').addEventListener('change', showDocker);
   function changeDashboardScope() {
     clearApiSelection();
-    byId('jenkins-detail').replaceChildren();
+    closeDetails('jenkins');
     if (current) render(current);
     if (demo) renderDemoCpu();
     byId('api-list').scrollTop = 0;
