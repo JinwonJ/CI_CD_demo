@@ -1,0 +1,3 @@
+﻿method,path,enabled
+GET,/api/health,true
+GET,/api/items,false
