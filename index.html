@@ -12,7 +12,7 @@
   .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0}.flow a,.flow span{display:block}
   .flow a{background:#e3f1fb;color:#133955;border-radius:8px;padding:7px 12px;text-decoration:none}
   .tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}button,select{font:inherit;padding:6px 12px;border:1px solid #9cafbd;border-radius:7px;background:#fff;color:#173149}
-  button{cursor:pointer}button:disabled{cursor:wait}.grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}.grid section{min-width:0}
+  button{cursor:pointer}button:disabled{cursor:default}.grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}.grid section{min-width:0}
   .scroll{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:8px;border-bottom:1px solid #dfe8ef;vertical-align:top}th{white-space:nowrap;color:#41596d}
   td{overflow-wrap:anywhere}a{color:#125a87}p.note{color:#5b4150}.engine{margin-top:22px}.badge{padding:3px 8px;border-radius:20px;background:#e8f1f7;white-space:nowrap}
   @media(max-width:850px){.grid{grid-template-columns:1fr;gap:0}main{padding:12px}header,section{padding:14px}}
@@ -266,9 +266,9 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
   const fetch = () => Promise.reject(new Error("Live APIs are disabled in the public demo"));
 (()=>{
 const demoLoadTargets=[
- {id:'sample-container',label:'sample-web · staging 컨테이너',type:'container',environment:'staging',enabled:true,reference:'sample-web-staging',path:'/api/health'},
- {id:'sample-image',label:'sample-web · 고정 이미지',type:'image',environment:'staging',enabled:true,reference:'sha256:'+'a'.repeat(64),path:'/api/health'},
- {id:'sample-pod',label:'sample-web · staging Pod',type:'pod',environment:'staging',enabled:true,reference:'demo-cluster/staging/sample-web-demo',path:'/api/health'}
+ {id:'sample-container',label:'sample-web · staging 컨테이너',type:'container',project:'sample-web',environment:'staging',enabled:true,reference:'sample-web-staging',path:'/api/health'},
+ {id:'sample-image',label:'sample-web · 고정 이미지',type:'image',project:'sample-web',environment:'staging',enabled:true,reference:'sha256:'+'a'.repeat(64),path:'/api/health'},
+ {id:'sample-pod',label:'sample-web · staging Pod',type:'pod',project:'sample-web',environment:'staging',enabled:true,reference:'demo-cluster/staging/sample-web-demo',path:'/api/health'}
 ];
 function createDemoLoad(target,settings,now=Date.now()){if(!target||!['container','image','pod'].includes(target.type)||!Number.isInteger(settings.rps)||settings.rps<1||settings.rps>20||!Number.isInteger(settings.concurrency)||settings.concurrency<1||settings.concurrency>10||!Number.isInteger(settings.durationSeconds)||settings.durationSeconds<1||settings.durationSeconds>30)throw new Error('부하 설정 허용 범위를 확인하세요.');return {id:'demo-load-'+now,createdAt:now,status:'preparing',simulation:true,target,settings,elapsedTotal:0,samples:[]};}
 function advanceDemoLoad(previous){if(!['preparing','running'].includes(previous.status))return previous;const run={...previous,samples:[...previous.samples],elapsedTotal:previous.elapsedTotal+1000};const prepareMs=run.target.type==='container'?1000:2000;if(run.elapsedTotal<=prepareMs)return run;run.status='running';const elapsedMs=Math.min(run.settings.durationSeconds*1000,run.elapsedTotal-prepareMs),seconds=elapsedMs/1000,factor=run.settings.rps/(run.settings.concurrency*3),capacity=run.settings.concurrency*3,actualRps=Math.min(run.settings.rps,capacity),completed=Math.floor(seconds*actualRps),failed=Math.floor(completed*(factor>1?.03:0)),p95Ms=Math.round(45+factor*factor*120+(seconds%4)*7);run.summary={elapsedMs,started:completed,completed,failed,errors:0,cancelled:0,dropped:Math.max(0,Math.floor(seconds*run.settings.rps)-completed),actualRps,averageMs:Math.round(p95Ms*.55),p95Ms,errorRate:completed?failed/completed:0,statusCodes:{200:completed-failed,503:failed},bytes:completed*128};const apis=run.settings.apis?.filter(api=>api.enabled!==false)||[{path:run.target.path}];run.summary.endpoints=Object.fromEntries(apis.map((api,index)=>{const n=Math.floor(completed/apis.length)+(index<completed%apis.length?1:0);return [api.path,{started:n,completed:n,failed:Math.floor(n*(factor>1?.03:0)),cancelled:0}];}));run.samples.push({time:run.createdAt+run.elapsedTotal,rps:actualRps,p95Ms,failed});if(seconds>=run.settings.durationSeconds){run.status='completed';run.finishedAt=run.createdAt+run.elapsedTotal;run.verdict=run.summary.errorRate<=.01&&p95Ms<=500&&run.summary.dropped===0?'passed':'failed';}return run;}
@@ -941,7 +941,7 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   function loadTargets(){const select=byId('load-target');select.replaceChildren();for(const target of window.LoadDemo.demoLoadTargets.filter(item=>item.type===byId('load-kind').value)){const option=el('option',target.label,select);option.value=target.id;}loadReference();}
   function loadReference(){const target=window.LoadDemo.demoLoadTargets.find(item=>item.id===byId('load-target').value);byId('load-reference').textContent=target?target.reference+' · HTTP GET '+target.path:'';}
   function drawLoad(){
-    byId('load-start').disabled=!!loadActive();byId('load-stop').disabled=!loadActive();for(const id of ['load-kind','load-target','load-rps','load-concurrency','load-duration'])byId(id).disabled=!!loadActive();
+    byId('load-start').disabled=!!loadActive();byId('load-stop').disabled=!loadActive();byId('load-stop').title=loadActive()?'가상 부하 생성만 중단합니다.':'진행 중인 테스트가 있을 때 사용할 수 있습니다.';for(const id of ['load-kind','load-target','load-rps','load-concurrency','load-duration'])byId(id).disabled=!!loadActive();
     const metrics=byId('load-metrics');metrics.replaceChildren();const summary=loadRun?.summary;
     byId('load-status').textContent=loadRun?'DEMO · '+statusLabel(loadRun.status)+' · '+loadRun.target.label+' · '+(loadRun.verdict||'미판정'):'가상 테스트를 시작하세요.';
     byId('load-progress').value=summary?Math.min(100,summary.elapsedMs/(loadRun.settings.durationSeconds*1000)*100):0;
