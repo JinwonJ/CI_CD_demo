@@ -100,6 +100,7 @@
   .issues-page main > :not(#issues){display:none}
   .usage-page main > :not(#usage){display:none}
   .control-page main > :not(#service-control){display:none}
+  .load-page main > :not(#load-tests){display:none}
   .metric-visual{height:92px;display:flex;align-items:center;justify-content:center;margin:8px 0}
   .metric-visual svg{width:88px;height:88px}
   .metric-visual svg text{font:700 15px system-ui;fill:#edf4fc}
@@ -149,6 +150,7 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
   <a href="#jenkins">Jenkins 배포</a>
   <a href="#docker">Docker 리소스</a>
   <a id="control-nav" href="/control">서비스 관리 데모</a>
+  <a id="load-nav" href="/load-tests">부하 테스트</a>
   <a href="#requests">실시간 API</a>
   <a id="issue-nav" href="/issues">보안 이슈<span id="issue-dot" class="issue-dot" hidden aria-hidden="true"></span></a>
   <a id="usage-nav" href="/usage">비용·무료 한도</a>
@@ -181,6 +183,7 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
     <section id="github"><h2>GitHub · 릴리스 빌드</h2><p>Gitleaks → 이미지 빌드 → 스모크 테스트 → Trivy</p><div id="ci-content"></div><div id="github-detail" aria-live="polite"></div></section>
     <section id="jenkins"><h2>Jenkins · 배포 이력</h2><p>Run ID 검증 → 승인 → 컨테이너 교체 → 스테이징 ZAP</p><div id="cd-content"></div><div id="jenkins-detail" aria-live="polite"></div></section>
   </div>
+  <section id="load-tests" hidden><h1>부하 테스트 · 공개 데모</h1><p class="note">가상 결과만 표시합니다. 실제 컨테이너·이미지·Pod에 요청하거나 대상을 생성하지 않습니다. 실제 테스트 서비스는 인증된 Next.js 관리자에서 별도로 사용합니다.</p><details><summary>PC·서비스 준비 체크리스트</summary><p>이 화면의 테스트는 가상 실행입니다. 실제 테스트 전에는 staging의 정상 health 응답, CPU·메모리 여유, 진행 중 배포·백업 여부를 확인합니다. 생성기만 실행할 때 논리 CPU 2개·RAM 4GiB를 준비 기준으로 검토하고, Docker Desktop은 공식 요구사항을 충족해야 합니다. Jenkins·앱까지 같은 PC라면 RAM 16GiB 이상을 권장 기준으로 검토하세요. 사양만으로 성능을 보장하지 않습니다.</p><p>처음에는 1 RPS·동시 1·3초로 확인하고 점진적으로 늘립니다. 오류·OOM·반복 재시작이나 CPU/메모리 포화가 발생하면 중단합니다.</p></details><form id="load-form"><div class="tools"><label>대상 종류<select id="load-kind"><option value="container">컨테이너</option><option value="image">이미지</option><option value="pod">Pod</option></select></label><label>대상<select id="load-target"></select></label></div><p id="load-reference" class="muted"></p><div class="tools"><label>목표 RPS<input id="load-rps" type="number" min="1" max="20" value="5" required style="width:80px"></label><label>동시 요청<input id="load-concurrency" type="number" min="1" max="10" value="2" required style="width:80px"></label><label>기간(초)<input id="load-duration" type="number" min="1" max="30" value="10" required style="width:80px"></label><button type="submit" id="load-start">데모 테스트 시작</button><button type="button" id="load-stop" disabled>실행 중단</button></div></form><p>상한: 20 RPS / 동시 10 / 30초 / 600요청 · 기본 판정: 오류율 ≤1%, P95 ≤500ms, 생성 부족 0</p><p id="load-status" role="status">테스트를 시작하세요.</p><progress id="load-progress" max="100" value="0" style="width:100%"></progress><div id="load-metrics" class="queue-metrics"></div><div id="load-chart" class="api-chart-wrap"></div><details><summary>실행 결과 상세</summary><pre id="load-detail"></pre></details><h3>가상 실행 이력 · 이 브라우저</h3><div id="load-history"></div></section>
   <section id="service-control" hidden>
     <h1>서비스 관리 데모</h1>
     <p><strong>시뮬레이션 전용 · 실제 Docker와 통신하지 않습니다.</strong> <a id="control-home" href="/">대시보드로 이동</a></p>
@@ -257,9 +260,24 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
     <p>이 화면의 표시는 비용 차단 설정이 아닙니다. 계정의 초과 사용 중지 정책을 별도로 적용해야 합니다.</p>
   </section>
 </main>
-<!-- QUEUE_MODEL_START -->
+<!-- LOAD_DEMO_START -->
 <script>
   const fetch = () => Promise.reject(new Error("Live APIs are disabled in the public demo"));
+(()=>{
+const demoLoadTargets=[
+ {id:'sample-container',label:'sample-web · staging 컨테이너',type:'container',environment:'staging',enabled:true,reference:'sample-web-staging',path:'/api/health'},
+ {id:'sample-image',label:'sample-web · 고정 이미지',type:'image',environment:'staging',enabled:true,reference:'sha256:'+'a'.repeat(64),path:'/api/health'},
+ {id:'sample-pod',label:'sample-web · staging Pod',type:'pod',environment:'staging',enabled:true,reference:'demo-cluster/staging/sample-web-demo',path:'/api/health'}
+];
+function createDemoLoad(target,settings,now=Date.now()){if(!target||!['container','image','pod'].includes(target.type)||!Number.isInteger(settings.rps)||settings.rps<1||settings.rps>20||!Number.isInteger(settings.concurrency)||settings.concurrency<1||settings.concurrency>10||!Number.isInteger(settings.durationSeconds)||settings.durationSeconds<1||settings.durationSeconds>30)throw new Error('부하 설정 허용 범위를 확인하세요.');return {id:'demo-load-'+now,createdAt:now,status:'preparing',simulation:true,target,settings,elapsedTotal:0,samples:[]};}
+function advanceDemoLoad(previous){if(!['preparing','running'].includes(previous.status))return previous;const run={...previous,samples:[...previous.samples],elapsedTotal:previous.elapsedTotal+1000};const prepareMs=run.target.type==='container'?1000:2000;if(run.elapsedTotal<=prepareMs)return run;run.status='running';const elapsedMs=Math.min(run.settings.durationSeconds*1000,run.elapsedTotal-prepareMs),seconds=elapsedMs/1000,factor=run.settings.rps/(run.settings.concurrency*3),capacity=run.settings.concurrency*3,actualRps=Math.min(run.settings.rps,capacity),completed=Math.floor(seconds*actualRps),failed=Math.floor(completed*(factor>1?.03:0)),p95Ms=Math.round(45+factor*factor*120+(seconds%4)*7);run.summary={elapsedMs,started:completed,completed,failed,errors:0,cancelled:0,dropped:Math.max(0,Math.floor(seconds*run.settings.rps)-completed),actualRps,averageMs:Math.round(p95Ms*.55),p95Ms,errorRate:completed?failed/completed:0,statusCodes:{200:completed-failed,503:failed},bytes:completed*128};run.samples.push({time:run.createdAt+run.elapsedTotal,rps:actualRps,p95Ms,failed});if(seconds>=run.settings.durationSeconds){run.status='completed';run.finishedAt=run.createdAt+run.elapsedTotal;run.verdict=run.summary.errorRate<=.01&&p95Ms<=500&&run.summary.dropped===0?'passed':'failed';}return run;}
+
+window.LoadDemo={demoLoadTargets,createDemoLoad,advanceDemoLoad};
+})();
+</script>
+<!-- LOAD_DEMO_END -->
+<!-- QUEUE_MODEL_START -->
+<script>
 (()=>{
 function createQueue(now=0){return {now,nextId:1,carry:0,jobs:[],events:[],counts:{arrived:0,completed:0,failed:0,timeouts:0,retries:0,rejected:0}};}
 function event(state,type,job){state.events.push({id:job.id+'-'+type+'-'+job.attempt+'-'+state.now,type,jobId:job.id,time:state.now,project:job.project,tier:job.tier});}
@@ -301,7 +319,9 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   const issuesPage = location.pathname === '/issues' || (fileMode && params.get('view') === 'issues');
   const usagePage = location.pathname === '/usage' || (fileMode && params.get('view') === 'usage');
   const controlPage = location.pathname === '/control' || (fileMode && params.get('view') === 'control');
-  const separatePage = issuesPage || usagePage || controlPage;
+  const loadPage = location.pathname === '/load-tests' || (fileMode && params.get('view') === 'load-tests');
+  const loadUrl = fileMode ? '?view=load-tests' : '/load-tests?demo=1';
+  const separatePage = issuesPage || usagePage || controlPage || loadPage;
   const controlUrl = fileMode ? '?view=control' : demo ? '/control?demo=1' : '/control';
   const dashboardUrl = fileMode ? location.pathname : demo ? '/?demo=1' : '/';
   const issuesUrl = fileMode ? '?view=issues' : demo ? '/issues?demo=1' : '/issues';
@@ -914,6 +934,26 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   byId('queue-reset').addEventListener('click',()=>{queueState=window.QueueSimulation.createQueue();drawQueueDemo();});
   if(!separatePage){drawQueueDemo();setInterval(()=>{if(!demo||queueHeld||apiPaused)return;queueState=window.QueueSimulation.advanceQueue(queueState,250,queueOptions());drawQueueDemo();},250);}
 
+  let loadRun=null,loadHistory=[];
+  const loadActive=()=>loadRun&&['preparing','running'].includes(loadRun.status);
+  function loadTargets(){const select=byId('load-target');select.replaceChildren();for(const target of window.LoadDemo.demoLoadTargets.filter(item=>item.type===byId('load-kind').value)){const option=el('option',target.label,select);option.value=target.id;}loadReference();}
+  function loadReference(){const target=window.LoadDemo.demoLoadTargets.find(item=>item.id===byId('load-target').value);byId('load-reference').textContent=target?target.reference+' · HTTP GET '+target.path:'';}
+  function drawLoad(){
+    byId('load-start').disabled=!!loadActive();byId('load-stop').disabled=!loadActive();for(const id of ['load-kind','load-target','load-rps','load-concurrency','load-duration'])byId(id).disabled=!!loadActive();
+    const metrics=byId('load-metrics');metrics.replaceChildren();const summary=loadRun?.summary;
+    byId('load-status').textContent=loadRun?'DEMO · '+statusLabel(loadRun.status)+' · '+loadRun.target.label+' · '+(loadRun.verdict||'미판정'):'가상 테스트를 시작하세요.';
+    byId('load-progress').value=summary?Math.min(100,summary.elapsedMs/(loadRun.settings.durationSeconds*1000)*100):0;
+    for(const [label,value] of [['처리 RPS',summary?summary.actualRps.toFixed(1):'미수집'],['P95 응답',summary?summary.p95Ms+'ms':'미수집'],['완료 요청',summary?.completed??'미수집'],['오류율',summary?(summary.errorRate*100).toFixed(1)+'%':'미수집'],['생성 부족',summary?.dropped??'미수집']]){const box=el('div',null,metrics);el('small',label,box);el('strong',String(value),box);}
+    byId('load-detail').textContent=loadRun?JSON.stringify(loadRun,null,2):'아직 결과가 없습니다.';
+    const panel=byId('load-chart');panel.replaceChildren();if(loadRun?.samples.length){const svg=svgNode('svg',{viewBox:'0 0 800 120',class:'chart','aria-label':'가상 P95 응답 시간 추세'},panel);const max=Math.max(500,...loadRun.samples.map(sample=>sample.p95Ms));svgNode('polyline',{fill:'none',stroke:'#22d3ee','stroke-width':3,points:loadRun.samples.map((sample,index)=>(10+index/Math.max(1,loadRun.samples.length-1)*780)+','+(110-sample.p95Ms/max*90)).join(' ')},svg);}
+    const history=byId('load-history');history.replaceChildren();table(history,['시각','대상','종류','상태','결과'],loadHistory.map(run=>[stamp(run.createdAt),run.target.label,run.target.type,statusLabel(run.status),run.verdict||'—']));
+  }
+  function saveLoadHistory(){if(!loadRun||loadActive())return;loadHistory=[loadRun,...loadHistory.filter(run=>run.id!==loadRun.id)].slice(0,20);try{localStorage.setItem('ops-public-load-history',JSON.stringify(loadHistory));}catch{}}
+  if(loadPage){try{loadHistory=JSON.parse(localStorage.getItem('ops-public-load-history')||'[]');}catch{}loadTargets();drawLoad();byId('load-kind').addEventListener('change',loadTargets);byId('load-target').addEventListener('change',loadReference);
+    byId('load-form').addEventListener('submit',event=>{event.preventDefault();if(loadActive())return;const target=window.LoadDemo.demoLoadTargets.find(item=>item.id===byId('load-target').value);const settings={rps:Number(byId('load-rps').value),concurrency:Number(byId('load-concurrency').value),durationSeconds:Number(byId('load-duration').value)};if(!confirm('[가상 부하 테스트] '+target.label+' · '+settings.rps+' RPS · '+settings.durationSeconds+'초. 실제 요청은 보내지 않습니다. 계속하시겠습니까?'))return;loadRun=window.LoadDemo.createDemoLoad(target,settings);drawLoad();});
+    byId('load-stop').addEventListener('click',()=>{if(!loadActive())return;loadRun={...loadRun,status:'cancelled',verdict:'not-evaluated',finishedAt:Date.now()};saveLoadHistory();drawLoad();});setInterval(()=>{if(!loadActive())return;loadRun=window.LoadDemo.advanceDemoLoad(loadRun);saveLoadHistory();drawLoad();},1000);
+  }
+
   let controlRows=[];
   let controlBusy=false;
   const demoControlRows = demoData.docker.data[0].containers.filter(row => !row.name.endsWith('-previous')).map(row=>({id:'demo/'+row.name,name:row.name,tier:row.tier || 'staging',state:row.state,paused:false}));
@@ -1252,19 +1292,20 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
   }
   function highlightSection(hash = location.hash || '#overview') {
     document.querySelectorAll('.rail a').forEach(anchor => {
-      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : anchor.getAttribute('href') === hash;
+      const selected = issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : loadPage ? anchor.id === 'load-nav' : anchor.getAttribute('href') === hash;
       if (selected) anchor.setAttribute('aria-current', separatePage ? 'page' : 'location');
       else anchor.removeAttribute('aria-current');
     });
   }
+  byId('load-nav').href = loadUrl;
   byId('control-nav').href = controlUrl;
   byId('control-home').href = dashboardUrl;
   byId('issue-nav').href = issuesUrl;
   byId('usage-nav').href = usageUrl;
   if (separatePage) {
-    document.body.classList.add(issuesPage ? 'issues-page' : usagePage ? 'usage-page' : 'control-page');
-    document.title = (issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : '서비스 관리 데모') + ' · 운영 대시보드';
-    byId(issuesPage ? 'issues' : usagePage ? 'usage' : 'service-control').hidden = false;
+    document.body.classList.add(issuesPage ? 'issues-page' : usagePage ? 'usage-page' : controlPage ? 'control-page' : 'load-page');
+    document.title = (issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : controlPage ? '서비스 관리 데모' : '부하 테스트') + ' · 운영 대시보드';
+    byId(issuesPage ? 'issues' : usagePage ? 'usage' : controlPage ? 'service-control' : 'load-tests').hidden = false;
     document.querySelectorAll('.rail a[href^="#"]').forEach(anchor => {
       anchor.href = dashboardUrl + anchor.getAttribute('href');
     });
