@@ -132,7 +132,7 @@
   <a href="#github">GitHub 빌드</a>
   <a href="#jenkins">Jenkins 배포</a>
   <a href="#docker">Docker 리소스</a>
-  <a id="control-nav" href="/control" target="_blank" rel="noopener noreferrer" title="새 탭에서 서비스 관리 데모 열기">서비스 관리 데모 ↗</a>
+  <a id="control-nav" href="/control">서비스 관리 데모</a>
   <a href="#requests">실시간 API</a>
   <a id="issue-nav" href="/issues">보안 이슈<span id="issue-dot" class="issue-dot" hidden aria-hidden="true"></span></a>
   <a id="usage-nav" href="/usage">비용·무료 한도</a>
@@ -1157,7 +1157,6 @@
   }
   byId('control-nav').href = controlUrl;
   byId('control-home').href = dashboardUrl;
-  if(controlPage) byId('control-nav').removeAttribute('target');
   byId('issue-nav').href = issuesUrl;
   byId('usage-nav').href = usageUrl;
   if (separatePage) {
