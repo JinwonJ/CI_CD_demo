@@ -412,8 +412,11 @@ function queueSummary(state,filter={}){
  const queued=jobs.filter(j=>j.status==='queued'),running=jobs.filter(j=>j.status==='running');
  return {jobs,queued,running,retrying:jobs.filter(j=>j.status==='retrying'),success:jobs.filter(j=>j.status==='success'),failed:jobs.filter(j=>j.status==='failed'),timeouts:jobs.filter(j=>j.status==='timeout'),maxWaitMs:Math.max(0,...queued.map(j=>state.now-j.queuedAt)),averageWaitMs:jobs.filter(j=>j.startedAt!=null).reduce((sum,j,_,a)=>sum+j.waitMs/a.length,0)};
 }
+// State stays inside boxes; transitions travel only on the visible connectors.
+const queueConnectorPaths={enqueue:'M205 125H240',start:'M475 125H515',result:'M730 125H780',retry:'M620 225V257H360V225',timeout:'M360 225V241H885V225'};
+const queueMotionPaths={enqueue:'M209 125H239',start:'M479 125H514',success:'M734 125H779',failed:'M734 125H779',retry:'M620 229V257H360V229',requeue:'M360 253V229',timeout:'M360 229V241H885V229'};
 
-window.QueueSimulation={createQueue,advanceQueue,queueSummary};
+window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPaths,queueMotionPaths};
 })();
 </script>
 <!-- QUEUE_MODEL_END -->
@@ -1024,7 +1027,8 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
     const panel=byId('queue-diagram');panel.replaceChildren();const svg=svgNode('svg',{viewBox:'0 0 1000 285','aria-label':'요청 유입, 대기 큐, 처리 중, 결과와 재시도 흐름'},panel);
     for(const [x,w,label] of [[15,190,'요청 유입'],[245,230,'대기 큐 · FIFO'],[520,210,'처리 중'],[785,200,'처리 결과']]){svgNode('rect',{x,y:30,width:w,height:195,rx:12,fill:'#0d1b2e',stroke:'#30455f'},svg);svgNode('text',{x:x+14,y:55},svg,label);}
     for(const [a,b]of [[205,245],[475,520],[730,785]]){svgNode('path',{d:'M'+a+' 125H'+(b-5),stroke:'#526b86','stroke-width':2},svg);svgNode('path',{d:'M'+(b-9)+' 121L'+(b-3)+' 125L'+(b-9)+' 129',fill:'none',stroke:'#526b86'},svg);}
-    svgNode('path',{d:'M620 225V257H360V225',stroke:'#c084fc',fill:'none','stroke-dasharray':'4 5'},svg);svgNode('text',{x:420,y:277,fill:'#c084fc'},svg,'일시 실패 → 재시도 → 큐 복귀');
+    svgNode('path',{d:window.QueueSimulation.queueConnectorPaths.timeout,stroke:'#f97316',fill:'none','stroke-dasharray':'3 5'},svg);
+    svgNode('path',{d:window.QueueSimulation.queueConnectorPaths.retry,stroke:'#c084fc',fill:'none','stroke-dasharray':'4 5'},svg);svgNode('text',{x:420,y:277,fill:'#c084fc'},svg,'일시 실패 → 재시도 → 큐 복귀');
     svgNode('text',{x:40,y:110,style:'font-size:28px;fill:#22d3ee'},svg,queueOptions().rate+'건/초');svgNode('text',{x:40,y:150},svg,'가상 요청 '+queueState.counts.arrived+'건 접수');
     const colors={queued:'#fbbf24',running:'#22d3ee',retrying:'#c084fc',success:'#60a5fa',failed:'#fb7185',timeout:'#f97316'};
     function tile(job,x,y){const item=svgNode('g',{role:'button',tabindex:0,'aria-label':job.id+' '+job.status},svg);svgNode('rect',{x,y,width:8,height:20,rx:2,fill:colors[job.status]},item);svgNode('title',{},item,job.id+' · '+job.status);item.addEventListener('click',()=>{byId('api-log').textContent=JSON.stringify({simulation:true,...job},null,2);byId('api-detail').showModal();});}
@@ -1032,7 +1036,7 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary};
     for(let index=0;index<queueOptions().workers;index++){const job=summary.running[index],x=533+index%2*98,y=73+Math.floor(index/2)*34;svgNode('rect',{x,y,width:86,height:27,rx:5,fill:job?'#103746':'#17263b',stroke:job?'#22d3ee':'#30455f'},svg);svgNode('text',{x:x+7,y:y+17,style:'font-size:10px'},svg,job?job.id:'작업자 '+(index+1)+' 대기');if(job)svgNode('rect',{x:x+3,y:y+22,width:Math.min(1,(queueState.now-job.startedAt)/job.durationMs)*80,height:2,fill:'#22d3ee'},svg);}
     [...summary.success,...summary.failed,...summary.timeouts].sort((a,b)=>b.finishedAt-a.finishedAt).slice(0,40).forEach((job,index)=>tile(job,802+index%10*15,77+Math.floor(index/10)*30));svgNode('text',{x:800,y:212,style:'font-size:10px'},svg,'성공 '+summary.success.length+' · 실패 '+summary.failed.length+' · 초과 '+summary.timeouts.length);
     const filter=event=>(!byId('environment').value||event.tier===byId('environment').value)&&(!byId('project').value||event.project===byId('project').value);
-    for(const event of queueState.events.filter(item=>queueState.now-item.time<1400&&filter(item))){const paths={enqueue:'M110 125H350',start:'M360 125H620',retry:'M620 220V257H360V220',requeue:'M360 245V125',timeout:'M360 210L885 210'};const circle=svgNode('circle',{r:4,fill:colors[event.type]||'#22d3ee',class:'queue-transition'},svg);svgNode('animateMotion',{path:paths[event.type]||'M620 125H885',dur:'1.2s',begin:'-'+((queueState.now-event.time)/1000)+'s',fill:'freeze'},circle);}
+    for(const event of queueState.events.filter(item=>queueState.now-item.time<1200&&filter(item))){const paths=window.QueueSimulation.queueMotionPaths;if(!paths[event.type])continue;const circle=svgNode('circle',{r:4,fill:colors[event.type]||'#22d3ee',class:'queue-transition'},svg);svgNode('animateMotion',{path:paths[event.type],dur:'1.2s',begin:'-'+((queueState.now-event.time)/1000)+'s',fill:'freeze'},circle);}
     const history=byId('queue-history');history.replaceChildren();table(history,['가상 시간','요청','프로젝트','단계'],[...queueState.events].reverse().filter(filter).slice(0,20).map(event=>[(event.time/1000).toFixed(1)+'초',event.jobId,event.project,queueNames[event.type]]));if(queueHeld||apiPaused)svg.pauseAnimations?.();
   }
   if(!demo){byId('queue-demo').querySelector('.tools').style.display='none';byId('queue-demo').querySelector('.note').textContent='실제 큐 수집 미연결 — 현재 완료 API 로그만 수집하며 대기/처리 중 수치는 추정하지 않습니다.';}
