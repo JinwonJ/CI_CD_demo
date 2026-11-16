@@ -102,6 +102,7 @@
   .control-page main > :not(#service-control){display:none}
   .load-page main > :not(#load-tests){display:none}
   .branch-page main > :not(#branches){display:none}
+.access-page main > :not(#access){display:none}
   .metric-visual{height:92px;display:flex;align-items:center;justify-content:center;margin:8px 0}
   .metric-visual svg{width:88px;height:88px}
   .metric-visual svg text{font:700 15px system-ui;fill:#edf4fc}
@@ -148,7 +149,8 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
   <div class="brand"><span>OP</span> Ops Monitor</div>
   <button id="logout" type="button">로그아웃</button>
   <a href="#overview" aria-current="location">운영 개요</a>
-  <a id="branch-nav" href="/branches?demo=1">브랜치·승격 관리</a>
+  <a id="access-nav" href="?view=access">계정·권한 안내</a>
+<a id="branch-nav" href="/branches?demo=1">브랜치·승격 관리</a>
   <a href="#github">GitHub 빌드</a>
   <a href="#jenkins">Jenkins 배포</a>
   <a href="#docker">Docker 리소스</a>
@@ -160,6 +162,7 @@ html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display
   <a id="usage-nav" href="/usage">비용·무료 한도</a>
 </nav>
 <main>
+<section id="access" hidden class="panel"><h1>계정·권한 안내 · 공개 데모</h1><p class="notice">가상 계정과 소속만 표시합니다. 실제 계정 변경은 실행하지 않습니다.</p><h2>인증 앱 6자리 코드</h2><p>고정 기본값은 없습니다. MFA 미등록 로컬 계정은 비워 두며, 등록 계정은 인증 앱의 현재 6자리 코드(30초마다 변경)를 입력합니다. 공개 데모 로그인은 MFA를 요구하지 않습니다. 운영은 개인 계정·MFA·HTTPS가 필수입니다.</p><p>인증 앱은 계정별 secret을 안전하게 등록해야 합니다. secret·QR은 Git에 올리지 않습니다. 앱을 잃었다면 서버 관리자에게 MFA 교체를 요청하세요. 자동 QR 등록·복구 코드 발급은 아직 제공하지 않습니다.</p><h2>역할별 접근 범위 체험</h2><label>가상 역할 <select id="access-role"><option>viewer</option><option>operator</option><option>admin</option><option>hyper</option></select></label><p id="access-role-description" role="status"></p><h3>권한 확인 흐름</h3><p>로그인 → 서버 역할 검사 → 소속 그룹 확인 → 허용 저장소 확인 → 조회·작업 권한 검사</p><p>그룹이 없으면 프로젝트에 접근할 수 없습니다. 저장소 제한은 그룹 안에서 범위를 좁힙니다. 보호 hyper는 삭제·강등·비활성화할 수 없습니다. GitHub·Jenkins 자체 권한은 별도입니다.</p><p>실제 계정 추가·수정·비활성화·삭제는 로컬 Next.js 관리자에 hyper로 로그인 후 계정·권한 메뉴에서 처리합니다. 이 공개 페이지는 설명과 가상 체험만 제공합니다.</p></section>
 <section id="branches" hidden><h1>운영 → 검증 → 개발 · 브랜치 관리</h1><p class="notice">DEMO · 아래 권한과 승인 상태는 예시입니다. 실제 GitHub 권한 변경이나 머지는 실행하지 않습니다.</p><p>코드 승격: 본인 작업 브랜치 → develop → staging → main. 실제 배포는 브랜치 머지와 별개로 Jenkins에서 승인합니다.</p><div id="branch-cards" class="tools"></div><div id="branch-detail"></div><h3>최고 관리자 승인 절차</h3><p>협업자는 원본의 본인 작업 브랜치 users/&lt;본인 로그인&gt;/&lt;작업명&gt;에 푸시한 후 develop 대상 PR을 엽니다. 직접 push와 웹 머지는 차단되지 않으며 PR 순서는 운영 규칙입니다. 최고 관리자가 검토한 HEAD SHA를 명시해 승인·머지합니다. Free 비공개 저장소의 필수 리뷰 보호 기능을 강제했다고 표시하지 않습니다.</p><pre>node scripts/branch-governance.mjs check-pr &lt;PR번호&gt; --credential-manager
 node scripts/branch-governance.mjs merge-pr &lt;PR번호&gt; --approve-sha &lt;검토한_HEAD_SHA&gt; --credential-manager</pre><p class="muted">실제 코드·커밋·PR·로그 접근은 로그인한 로컬 Next.js 관리자의 브랜치·승격 관리 메뉴에서 가능합니다.</p></section>
   <header id="overview">
@@ -425,6 +428,7 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
   const params = new URLSearchParams(location.search);
   const fileMode = true; // Standalone public demo: query-only navigation
   const demo = true; // Public exports never connect to live services
+  const accessPage = fileMode && params.get('view') === 'access';
   const branchPage = location.pathname === '/branches' || (fileMode && params.get('view') === 'branches');
   const issuesPage = location.pathname === '/issues' || (fileMode && params.get('view') === 'issues');
   const usagePage = location.pathname === '/usage' || (fileMode && params.get('view') === 'usage');
@@ -432,7 +436,7 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
   const jmeterPage = location.pathname === '/jmeter' || (fileMode && params.get('view') === 'jmeter');
   const loadPage = jmeterPage || location.pathname === '/load-tests' || (fileMode && params.get('view') === 'load-tests');
   const loadUrl = fileMode ? '?view=load-tests' : '/load-tests?demo=1';
-  const separatePage = branchPage || issuesPage || usagePage || controlPage || loadPage;
+  const separatePage = accessPage || branchPage || issuesPage || usagePage || controlPage || loadPage;
   const controlUrl = fileMode ? '?view=control' : demo ? '/control?demo=1' : '/control';
   const dashboardUrl = fileMode ? location.pathname : demo ? '/?demo=1' : '/';
   const issuesUrl = fileMode ? '?view=issues' : demo ? '/issues?demo=1' : '/issues';
@@ -1413,12 +1417,15 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
   if(branchPage){const model=window.BranchDemo.demoBranches(),cards=byId('branch-cards');function chooseBranch(name){const branch=model.branches.find(item=>item.name===name),holder=byId('branch-detail');holder.replaceChildren();for(const button of cards.querySelectorAll('button')){const chosen=button.dataset.branch===name;button.setAttribute('aria-pressed',String(chosen));button.style.borderColor=chosen?'#22d3ee':'';}el('h2',branch.label+' · '+branch.name,holder);el('p','커밋 예시: '+branch.sha.slice(0,12),holder);el('p','승격 경로: '+(['personal-fork','personal-branch'].includes(branch.incoming)?'본인 작업 브랜치':branch.incoming)+' → '+branch.name,holder);el('p','최고 관리자: demo-admin · 협업자 쓰기 권한 4명 · 직접 push 차단 없음 (가상 예시)',holder);table(holder,['실행','제목','상태'],branch.runs.map(run=>[run.id,run.title,run.status]));el('h3','이 브랜치로 들어오는 PR',holder);table(holder,['PR','출발 → 도착','경로','승인'],model.pulls.filter(pr=>pr.base===name).map(pr=>['#'+pr.number+' '+pr.title,pr.head+' → '+pr.base,pr.route.reason,pr.approval]));}for(const branch of model.branches){const button=el('button',branch.label+' · '+branch.name,cards);button.type='button';button.dataset.branch=branch.name;button.onclick=()=>chooseBranch(branch.name);}chooseBranch('main');}
   function highlightSection(hash = location.hash || '#overview') {
     document.querySelectorAll('.rail a').forEach(anchor => {
-      const selected = branchPage ? anchor.id === 'branch-nav' : issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : loadPage ? anchor.id === (jmeterPage?'jmeter-nav':'load-nav') : anchor.getAttribute('href') === hash;
+      const selected = accessPage ? anchor.id === 'access-nav' : branchPage ? anchor.id === 'branch-nav' : issuesPage ? anchor.id === 'issue-nav' : usagePage ? anchor.id === 'usage-nav' : controlPage ? anchor.id === 'control-nav' : loadPage ? anchor.id === (jmeterPage?'jmeter-nav':'load-nav') : anchor.getAttribute('href') === hash;
       if (selected) anchor.setAttribute('aria-current', separatePage ? 'page' : 'location');
       else anchor.removeAttribute('aria-current');
     });
   }
-  byId('branch-nav').href=fileMode?'?view=branches':'/branches?demo=1';
+  byId('access-nav').href='?view=access';
+const descriptions={viewer:'demo-viewer · demo-team / example/sample · 조회 전용',operator:'demo-operator · 소속 그룹 내 조회와 허용된 운영 작업',admin:'demo-admin · 소속 그룹 내 관리 · 전체 계정 관리 불가',hyper:'demo-hyper · 전체 그룹·저장소·브랜치 총괄 · 계정 권한 추가·수정·제거'};
+byId('access-role').onchange=()=>{byId('access-role-description').textContent=descriptions[byId('access-role').value];};byId('access-role').onchange();
+byId('branch-nav').href=fileMode?'?view=branches':'/branches?demo=1';
   byId('load-nav').href = loadUrl;
   byId('jmeter-nav').href = fileMode ? '?view=jmeter' : '/jmeter?demo=1';
   if(jmeterPage){byId('load-tests').querySelector('h1').textContent='JMeter 부하 테스트 · 가상 체험';byId('load-tests').querySelector('.note').textContent='공개·기존 HTML 화면은 JMeter 실행 흐름을 모의 체험합니다. Java 프로세스를 실행하지 않습니다. 실제 실행은 로컬 Next.js 관리자에서 로그인 → JMeter 부하 테스트 → 실제 테스트 서비스를 선택하세요.';}
@@ -1427,9 +1434,9 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
   byId('issue-nav').href = issuesUrl;
   byId('usage-nav').href = usageUrl;
   if (separatePage) {
-    document.body.classList.add(branchPage?'branch-page':issuesPage ? 'issues-page' : usagePage ? 'usage-page' : controlPage ? 'control-page' : 'load-page');
-    document.title = (branchPage?'브랜치·승격 관리':issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : controlPage ? '서비스 관리 데모' : jmeterPage ? 'JMeter 부하 테스트' : '간단 부하 테스트') + ' · 운영 대시보드';
-    byId(branchPage?'branches':issuesPage ? 'issues' : usagePage ? 'usage' : controlPage ? 'service-control' : 'load-tests').hidden = false;
+    document.body.classList.add(accessPage?'access-page':branchPage?'branch-page':issuesPage ? 'issues-page' : usagePage ? 'usage-page' : controlPage ? 'control-page' : 'load-page');
+    document.title = (accessPage?'계정·권한 안내':branchPage?'브랜치·승격 관리':issuesPage ? '보안 이슈' : usagePage ? '비용·무료 한도' : controlPage ? '서비스 관리 데모' : jmeterPage ? 'JMeter 부하 테스트' : '간단 부하 테스트') + ' · 운영 대시보드';
+    byId(accessPage?'access':branchPage?'branches':issuesPage ? 'issues' : usagePage ? 'usage' : controlPage ? 'service-control' : 'load-tests').hidden = false;
     document.querySelectorAll('.rail a[href^="#"]').forEach(anchor => {
       anchor.href = dashboardUrl + anchor.getAttribute('href');
     });
