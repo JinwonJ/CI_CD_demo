@@ -163,6 +163,9 @@ summary>button{margin-left:12px}
 @media(max-width:640px){.tools{gap:12px;align-items:stretch}.tools>label{flex:1 1 180px}.tools>label input:not([type=checkbox]),.tools>label select{flex:1;min-width:100px}.tools>button{min-height:44px}button{max-width:100%}}
 
 #branch-cards{gap:10px}#branch-cards>button{margin:0}#access .access-toolbar{gap:16px}#access .access-toolbar>button{margin:0}.rail button{margin:0}.flow{gap:12px}.load-flow-nodes{gap:12px}.load-flow-nodes button{margin:0}.access-dialog form{gap:20px}.access-dialog form>label{margin:0}
+
+.perf-value{display:block;font-size:30px;line-height:1.3;color:#77e2de;font-variant-numeric:tabular-nums}.perf-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}.perf-flow>a{display:flex;flex-direction:column;gap:12px;padding:22px;border:1px solid #315269;border-radius:12px;background:#102537;color:#dfefff;text-decoration:none;position:relative}.perf-flow>a:not(:last-child):after{content:'→';position:absolute;right:-18px;top:44%;color:#73d9dc}.perf-flow strong{font-size:20px}.perf-flow small{color:#9cb8cb}.perf-bars{height:150px;display:flex;gap:8px;align-items:stretch;padding-top:16px}.perf-bars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}.perf-bars i{display:block;width:100%;background:linear-gradient(#64e1d4,#1b7bba);border-radius:5px 5px 0 0;min-height:2px}.perf-bars small{font-size:10px;color:#a5bed0}.perf-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:20px 0}.perf-card{min-width:0;background:#102034;border:1px solid #30455d;border-radius:12px;padding:20px}.perf-card h3{font-size:13px;color:#aec4d9;margin:0 0 14px}.perf-card p{font-size:12px;color:#8eaac3}.perf-subgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:20px 0}#performance-home{margin-bottom:28px}#performance-home h2{font-size:18px}#performance-home .perf-table{overflow:auto}#performance-home table{font-size:13px}#performance-home .perf-note{font-size:12px;color:#9db1c8}
+@media(max-width:1000px){.perf-grid,.perf-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.perf-flow>a:after{display:none}}@media(max-width:600px){.perf-subgrid,.perf-grid{grid-template-columns:1fr}.perf-flow{gap:10px}.perf-flow>a{padding:16px}.perf-value{font-size:26px}}
 </style>
 <style>
 html:not(.demo-signed-in) body>.rail,html:not(.demo-signed-in) body>main{display:none!important}html.demo-signed-in #demo-login{display:none}#demo-login{min-height:100vh;display:grid;place-items:center;padding:24px;background:#0b1524;color:#e9f0fa}#demo-login section{width:min(440px,100%);padding:32px;background:#142236;border:1px solid #30445d;border-radius:18px}#demo-login input:not([type=checkbox]),#demo-login button{width:100%;font:inherit;padding:12px;border:1px solid #3c5473;border-radius:8px;background:#0d1c2f;color:white}#demo-login label{display:block;margin:18px 0}#demo-login button{background:#218cbd;cursor:pointer}#demo-login p{color:#aec1da}#demo-login-message{min-height:26px;color:#ff9caa!important}
@@ -922,6 +925,7 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
   }
 
   function renderApi(incoming = new Set()) {
+    drawPerformance();
     if (!apiSnapshot) return;
     const project = byId('project').value;
     updateApiOptions(apiSnapshot.events);
@@ -1270,7 +1274,28 @@ window.QueueSimulation={createQueue,advanceQueue,queueSummary,queueConnectorPath
     if (['failure', 'failed', 'timed_out', 'unstable'].includes(key)) return 'bad';
     return key === 'success' ? 'ok' : 'wait';
   }
+  let perfData=null;
+  function performanceSummary(events,containers,now=Date.now()){
+ const rows=events.filter(e=>Number(e.time)>=now-60000&&Number(e.time)<=now);
+ const durations=rows.map(e=>Number(e.durationMs)).filter(Number.isFinite).sort((a,b)=>a-b);
+ const failed=rows.filter(e=>!(e.status>=200&&e.status<300)).length;
+ const cpus=containers.map(c=>parseFloat(c.cpu)).filter(Number.isFinite);
+ const buckets=Array.from({length:12},(_,i)=>rows.filter(e=>e.time>=now-60000+i*5000&&e.time<now-55000+i*5000).length);
+ return {count:rows.length,rps:rows.length/60,error:rows.length?failed/rows.length*100:null,p95:durations.length?durations[Math.ceil(durations.length*.95)-1]:null,cpu:cpus.length?Math.max(...cpus):null,buckets,slow:rows.slice().sort((a,b)=>b.durationMs-a.durationMs).slice(0,5)};
+}
+
+  function drawPerformance(){
+    if(!perfData)return;const {data,builds,containers}=perfData;let host=byId('performance-home');if(!host){host=document.createElement('div');host.id='performance-home';byId('overview').insertAdjacentElement('afterend',host);}host.replaceChildren();
+    const rows=(apiSnapshot?.events||[]).filter(e=>(!byId('project').value||e.project===byId('project').value)&&environmentMatches(e.tier)),s=performanceSummary(rows,containers);
+    el('h2','성능 중심 · 전체 프로세스',host);const grid=el('div',null,host);grid.className='perf-grid';
+    for(const [label,value,note]of [['관측 처리량',s.count?s.rps.toFixed(2)+' req/s':'—','최근 60초 수집 건수 ÷ 60'],['P95 응답시간',s.p95==null?'—':s.p95+' ms','수집 요청 95백분위'],['오류율',s.error==null?'—':s.error.toFixed(1)+' %','2xx 이외 응답·연결 종료'],['최대 컨테이너 CPU',s.cpu==null?'—':s.cpu+' %','100% ≈ CPU 1코어']]){const card=el('div',null,grid);card.className='perf-card';el('h3',label,card);el('strong',value,card).className='perf-value';el('p',note,card);}
+    const flow=el('div',null,host);flow.className='perf-flow';for(const [id,name,sub,value]of [['github','GitHub','빌드·보안 검사',statusLabel(data.github.data?.[0]?.state)||'미수집'],['jenkins','Jenkins','승인·배포',statusLabel(builds[0]?.state)||'미수집'],['docker','Docker','실행 중 / 전체',containers.filter(c=>c.state==='running').length+' / '+containers.length],['requests','API','응답 성능',s.p95==null?'미수집':'P95 '+s.p95+'ms']]){const a=el('a',null,flow);a.href='#'+id;el('small',sub,a);el('strong',name,a);el('span',value,a);}
+    const columns=el('div',null,host);columns.className='perf-subgrid';const chart=el('div',null,columns);chart.className='perf-card';el('h2','API 처리량 · 최근 60초',chart);const bars=el('div',null,chart);bars.className='perf-bars';bars.setAttribute('aria-label','5초 구간별 수집 API 건수');for(const n of s.buckets){const col=el('div',null,bars);const bar=el('i',null,col);bar.style.height=(n?Math.max(5,n/Math.max(1,...s.buckets)*100):2)+'%';el('small',String(n),col);}el('p','60초 전 → 현재 · 막대 하나는 5초',chart);
+    const alert=el('div',null,columns);alert.className='perf-card';el('h2','성능 확인 우선순위',alert);el('strong',s.cpu>=95?'CPU 포화 확인':s.error>1?'오류 응답 확인':s.p95>=500?'느린 API 확인':s.count?'관측 기준 경고 없음':'요청 수집 대기',alert);el('p','참고 기준: CPU 95% · P95 500ms · 오류율 1%. 서비스 목표에 맞춘 검증이 필요합니다.',alert);const link=el('a','실시간 API · 상세 로그 →',alert);link.href='#requests';
+    const slow=el('div',null,host);slow.className='perf-card perf-table';el('h2','느린 요청 · 최근 수집 상위 5건',slow);table(slow,['프로젝트','요청','응답','처리시간'],s.slow.map(e=>[e.project,e.method+' '+e.route,e.status||'연결 종료',e.durationMs+' ms']));el('p','단계별 최근 상태이며 동일 릴리스 추적 결과는 아닙니다. 최근 60초 수집 표본 기준으로, 전체 서비스 처리량과 다를 수 있습니다. 데이터가 없으면 정상으로 판단하지 않습니다.',host).className='perf-note';
+  }
   function overview(data, builds, containers) {
+    perfData={data,builds,containers};drawPerformance();
     const runs = data.github.data || [];
     const deployments = builds.filter(build => build.fields.OPERATION === 'deploy');
     const write = (id, value, color = 'ok') => {
