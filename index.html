@@ -1546,3 +1546,35 @@ byId('branch-nav').href=fileMode?'?view=branches':'/branches?demo=1';
   }
   if (!demo) setInterval(refreshIssues, 30000);
 </script>
+
+<script>// Public, fictional browser-only account management. Never calls live APIs.
+(()=>{
+ const host=document.getElementById('access');if(!host)return;
+ const key='ops-demo-access-v1',roles=['viewer','operator','admin','hyper'];
+ const initial=()=>[{username:'demo-hyper',role:'hyper',group:'all',repository:'all',disabled:false},{username:'demo-viewer',role:'viewer',group:'demo-team',repository:'example/sample',disabled:false}];
+ let users=initial();try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.length<=100&&saved.every(u=>/^demo-[a-z0-9_-]{1,32}$/.test(u.username)&&roles.includes(u.role)&&['all','demo-team','demo-api','none'].includes(u.group)&&['all','example/sample','example/api'].includes(u.repository)&&typeof u.disabled==='boolean')&&saved.some(u=>u.username==='demo-hyper'&&u.role==='hyper'&&!u.disabled))users=saved;}catch{}
+ const add=(tag,text,parent=host)=>{const e=document.createElement(tag);if(text)e.textContent=text;parent.append(e);return e;};
+ add('h2','가상 계정 추가·권한 수정·제거');
+ add('p','demo-hyper 권한으로 체험합니다. demo-로 시작하는 가상 아이디만 사용하세요. 비밀번호·MFA secret은 수집하지 않습니다. 변경은 이 브라우저에만 저장되며 실제 로그인 계정은 바뀌지 않습니다.');
+ const form=add('form'),pick=add('select',null,add('label','편집할 가상 계정 ',form));
+ const name=add('input',null,add('label',' 가상 아이디 ',form));name.required=true;name.pattern='demo-[a-z0-9_-]{1,32}';name.maxLength=37;name.placeholder='demo-member';
+ const select=(label,values)=>{const e=add('select',null,add('label',label,form));for(const v of values){const o=add('option',v,e);o.value=v;}return e;};
+ const role=select(' 역할 ',roles),group=select(' 소속 그룹 ',['none','demo-team','demo-api','all']),repo=select(' 저장소 제한 ',['all','example/sample','example/api']);
+ const message=add('p');message.setAttribute('role','status');
+ const buttons=add('div',null,form);buttons.className='tools';
+ const save=add('button','계정 추가 / 권한 저장',buttons);save.type='submit';
+ const toggle=add('button','비활성화 / 활성화',buttons);toggle.type='button';
+ const remove=add('button','계정 삭제',buttons);remove.type='button';
+ const reset=add('button','가상 데이터 초기화',buttons);reset.type='button';
+ const table=add('table');table.style.width='100%';const head=add('thead',null,table),tr=add('tr',null,head);for(const t of ['아이디','역할','그룹','저장소','상태'])add('th',t,tr);const body=add('tbody',null,table);
+ const persist=()=>{try{localStorage.setItem(key,JSON.stringify(users));message.textContent='가상 데이터에 적용했습니다. 실제 계정에는 영향이 없습니다.';}catch{message.textContent='브라우저 저장이 차단되어 현재 화면에만 적용했습니다.';}render();};
+ function choose(){const u=users.find(u=>u.username===pick.value);name.value=u?.username||'';name.disabled=!!u;role.value=u?.role||'viewer';group.value=u?.group||'none';repo.value=u?.repository||'all';const protectedUser=u?.username==='demo-hyper';role.disabled=protectedUser;toggle.disabled=remove.disabled=!u||protectedUser;}
+ function render(){const selected=pick.value;pick.replaceChildren();const empty=add('option','새 가상 계정',pick);empty.value='';for(const u of users){const o=add('option',u.username,pick);o.value=u.username;}pick.value=users.some(u=>u.username===selected)?selected:'';body.replaceChildren();for(const u of users){const row=add('tr',null,body);for(const v of [u.username,u.role,u.group,u.repository,u.disabled?'비활성':'활성'])add('td',v,row);}choose();}
+ pick.onchange=choose;
+ form.onsubmit=e=>{e.preventDefault();const current=users.find(u=>u.username===pick.value);if(!current&&users.some(u=>u.username===name.value)){message.textContent='같은 아이디가 이미 있습니다.';return;}if(!current&&users.length>=100){message.textContent='가상 계정은 최대 100개입니다.';return;}if(current?.username==='demo-hyper'&&role.value!=='hyper')return;const u={username:current?.username||name.value,role:role.value,group:group.value,repository:repo.value,disabled:current?.disabled||false};if(current)Object.assign(current,u);else users.push(u);persist();};
+ toggle.onclick=()=>{const u=users.find(u=>u.username===pick.value);if(!u||u.username==='demo-hyper')return;u.disabled=!u.disabled;persist();};
+ remove.onclick=()=>{if(!pick.value||pick.value==='demo-hyper'||!confirm('선택한 가상 계정을 삭제할까요?'))return;users=users.filter(u=>u.username!==pick.value);persist();};
+ reset.onclick=()=>{if(!confirm('이 브라우저의 가상 계정 변경을 초기화할까요?'))return;users=initial();persist();};
+ render();
+})();
+</script>
